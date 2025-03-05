@@ -136,10 +136,7 @@ class FramerBanner(FramerBase):
 
     def encode(self, pdu: bytes, device_id: int, _tid: int) -> bytes:
         """Encode ADU."""
-        if device_id > 0xFF:
-            frame = 0xfa.to_bytes(1,'big') + device_id.to_bytes(2,'big') + pdu
-        else:
-            frame = device_id.to_bytes(1,'big') + pdu
+        frame = 0xfa.to_bytes(1,'big') + device_id.to_bytes(2,'big') + pdu
         return frame + FramerBanner.compute_CRC(frame).to_bytes(2,'big')
 
     @classmethod

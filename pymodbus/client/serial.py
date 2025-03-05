@@ -90,8 +90,8 @@ class AsyncModbusSerialClient(ModbusBaseClient):
                 "Serial client requires pyserial "
                 'Please install with "pip install pyserial" and try again.'
             )
-        if framer not in [FramerType.ASCII, FramerType.RTU]:
-            raise TypeError("Only FramerType RTU/ASCII allowed.")
+        if framer not in [FramerType.ASCII, FramerType.RTU, FramerType.BANNER]:
+            raise TypeError("Only FramerType RTU/ASCII/BANNER allowed.")
         self.comm_params = CommParams(
             comm_type=CommType.SERIAL,
             host=port,

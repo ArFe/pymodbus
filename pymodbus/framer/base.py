@@ -17,6 +17,7 @@ class FramerType(str, Enum):
     """Type of Modbus frame."""
 
     ASCII = "ascii"
+    BANNER = "banner"
     RTU = "rtu"
     SOCKET = "socket"
     TLS = "tls"

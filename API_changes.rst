@@ -2,6 +2,14 @@ API changes
 ===========
 Versions (X.Y.Z) where Z > 0 e.g. 3.0.1 do NOT have API changes!
 
+-----------------
+API changes 3.9.0
+-----------------
+- Python 3.9 is reaching end of life, and no longer supported.
+  Depending on the usage the code might still work
+- Start*Server, custom_functions -> custom_pdu (handled by Modbus<x>Server)
+- payload removed (replaced by "convert_combined_to/from_registers")
+
 API changes 3.8.0
 -----------------
 - ModbusSlaveContext, removed zero_mode parameter.

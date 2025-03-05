@@ -61,9 +61,9 @@ Common features
 * support all standard frames: socket, rtu, rtu-over-tcp, tcp and ascii
 * does not have third party dependencies, apart from pyserial (optional)
 * very lightweight project
-* requires Python >= 3.9
+* requires Python >= 3.10
 * thorough test suite, that test all corners of the library
-* automatically tested on Windows, Linux and MacOS combined with python 3.9 - 3.13
+* automatically tested on Windows, Linux and MacOS combined with python 3.10 - 3.13
 * strongly typed API (py.typed present)
 
 The modbus protocol specification: Modbus_Application_Protocol_V1_1b3.pdf can be found on
@@ -75,7 +75,7 @@ Client Features
 * asynchronous API and synchronous API for applications
 * very simple setup and call sequence (just 6 lines of code)
 * utilities to convert int/float to/from multiple registers
-* payload builder/decoder to help with complex data
+* encoder/decoder to help with standard python data types
 
 `Client documentation <https://pymodbus.readthedocs.io/en/latest/source/client.html>`_
 
@@ -297,7 +297,7 @@ There are 2 bigger projects ongoing:
 
 Development instructions
 ------------------------
-The current code base is compatible with python >= 3.9.
+The current code base is compatible with python >= 3.10.
 
 Here are some of the common commands to perform a range of activities::
 

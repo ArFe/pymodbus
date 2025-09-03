@@ -78,7 +78,7 @@ class FramerBanner(FramerBase):
 
     """
 
-    MIN_SIZE = 6  # <0xfa><slave id><function code><crc 2 bytes>
+    MIN_SIZE = 4  # <0xfa><slave id><function code><crc 2 bytes>
 
     @classmethod
     def generate_crc16_table(cls) -> list[int]:
@@ -112,13 +112,13 @@ class FramerBanner(FramerBase):
                 data_start = used_len + 3
                 extra_len = 2
             else:
+                # continue
+                dev_id = int(data[used_len])
+                data_start = used_len + 1
+                extra_len = 0
+            if not (pdu_class := self.decoder.lookupPduClass(data[(data_start-1):])):
                 continue
-                # dev_id = int(data[used_len])
-                # data_start = used_len + 1
-                # extra_len = 0
-            if not (pdu_class := self.decoder.lookupPduClass(data[used_len:])):
-                continue
-            if not (size := pdu_class.calculateRtuFrameSize(data[used_len:])):
+            if not (size := pdu_class.calculateRtuFrameSize(data[(data_start-1):])):
                 size = data_len +1
             if data_len < used_len + size + extra_len:
                 Log.debug("Frame - not ready")
@@ -128,6 +128,11 @@ class FramerBanner(FramerBase):
                 crc = data[start_crc : start_crc + 2]
                 crc_val = (int(crc[0]) << 8) + int(crc[1])
                 if not FramerBanner.check_CRC(data[used_len : start_crc], crc_val):
+                    Log.debug(f"data --> {data}")
+                    Log.debug(f"used_len --> {used_len}")
+                    Log.debug(f"srange({data_len}) --> {list(range(data_len))}")
+                    Log.debug(f"data[{used_len} : {start_crc}] --> {data[used_len : start_crc]}")
+                    Log.debug(f"crc_val --> {crc_val} | computed --> {FramerBanner.compute_CRC(data[used_len : start_crc])}")
                     Log.debug("Frame check failed, possible garbage after frame, testing..")
                     continue
                 return start_crc + 2, dev_id, 0, data[data_start : start_crc]
@@ -136,7 +141,11 @@ class FramerBanner(FramerBase):
 
     def encode(self, pdu: bytes, device_id: int, _tid: int) -> bytes:
         """Encode ADU."""
-        frame = 0xfa.to_bytes(1,'big') + device_id.to_bytes(2,'big') + pdu
+        if device_id > 0xFF:
+            frame = 0xfa.to_bytes(1,'big') + device_id.to_bytes(2,'big') + pdu
+        else:
+            Log.debug("Using legacy mode for device_id")
+            frame = device_id.to_bytes(1,'big') + pdu
         return frame + FramerBanner.compute_CRC(frame).to_bytes(2,'big')
 
     @classmethod

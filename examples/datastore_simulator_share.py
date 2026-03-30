@@ -32,9 +32,8 @@ import argparse
 import asyncio
 import logging
 
-from pymodbus import pymodbus_apply_logging_config
+from pymodbus import ModbusDeviceIdentification, pymodbus_apply_logging_config
 from pymodbus.datastore import ModbusServerContext, ModbusSimulatorContext
-from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.server import StartAsyncTcpServer
 
 
@@ -143,9 +142,9 @@ def get_commandline(cmdline=None):
 
 def setup_simulator(setup=None, actions=None, cmdline=None):
     """Run server setup."""
-    if not setup:
+    if not setup:  # pragma: no cover
         setup=demo_config
-    if not actions:
+    if not actions:  # pragma: no cover
         actions=demo_actions
     args = get_commandline(cmdline=cmdline)
     pymodbus_apply_logging_config(args.log.upper())
@@ -153,7 +152,7 @@ def setup_simulator(setup=None, actions=None, cmdline=None):
     args.port = int(args.port)
 
     context = ModbusSimulatorContext(setup, actions)
-    args.context = ModbusServerContext(slaves=context, single=True)
+    args.context = ModbusServerContext(devices=context, single=True)
     args.identity = ModbusDeviceIdentification(
         info_name={
             "VendorName": "Pymodbus",

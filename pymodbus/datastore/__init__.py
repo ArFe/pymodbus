@@ -1,21 +1,17 @@
 """Datastore."""
 
 __all__ = [
-    "ModbusBaseSlaveContext",
+    "ModbusDeviceContext",
     "ModbusSequentialDataBlock",
     "ModbusServerContext",
     "ModbusSimulatorContext",
-    "ModbusSlaveContext",
     "ModbusSparseDataBlock",
 ]
 
-from pymodbus.datastore.context import (
-    ModbusBaseSlaveContext,
+from .context import (
+    ModbusDeviceContext,
     ModbusServerContext,
-    ModbusSlaveContext,
 )
-from pymodbus.datastore.simulator import ModbusSimulatorContext
-from pymodbus.datastore.store import (
-    ModbusSequentialDataBlock,
-    ModbusSparseDataBlock,
-)
+from .sequential import ModbusSequentialDataBlock
+from .simulator import ModbusSimulatorContext
+from .sparse import ModbusSparseDataBlock

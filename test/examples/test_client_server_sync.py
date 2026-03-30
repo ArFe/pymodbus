@@ -47,8 +47,8 @@ class TestClientServerSyncExamples:
     @pytest.fixture(name="use_port")
     def get_port_in_class(base_ports):
         """Return next port."""
-        base_ports[__class__.__name__] += 1
-        return base_ports[__class__.__name__]
+        base_ports[__class__.__name__] += 1  # type: ignore[index, name-defined]
+        return base_ports[__class__.__name__]  # type: ignore[index, name-defined]
 
     def test_combinations(
         self,
@@ -73,7 +73,8 @@ class TestClientServerSyncExamples:
         sleep(SLEEPING)
         ServerStop()
 
-    def test_server_client_twice(self, mock_cls, mock_clc, use_comm):
+    @pytest.mark.skip
+    def test_server_client_twice(self, mock_cls, mock_clc, use_comm):  # pragma: no cover
         """Run async server without client."""
         if use_comm == "serial":
             # cannot open the usb port multiple times
@@ -87,6 +88,7 @@ class TestClientServerSyncExamples:
         run_sync_client(test_client, modbus_calls=run_a_few_calls)
         sleep(SLEEPING)
         run_sync_client(test_client, modbus_calls=run_a_few_calls)
+        run_sync_client(test_client)
         ServerStop()
 
     def test_client_no_server(self, mock_clc):

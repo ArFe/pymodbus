@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import struct
+from typing import Any
 
-from pymodbus.constants import DeviceInformation, MoreData
-from pymodbus.datastore import ModbusSlaveContext
-from pymodbus.device import DeviceInformationFactory, ModbusControlBlock
-from pymodbus.pdu.pdu import ExceptionResponse, ModbusPDU
+from ..constants import DeviceInformation, ExcCodes, MoreData
+from ..datastore import ModbusServerContext
+from .decoders import DecodePDU
+from .device import DeviceInformationFactory, ModbusControlBlock
+from .exceptionresponse import ExceptionResponse
+from .pdu import ModbusPDU
 
 
 _MCB = ModbusControlBlock()
@@ -47,19 +50,25 @@ class ReadDeviceInformationRequest(ModbusPDU):
         )
         return packet
 
+    @classmethod
+    def decode_sub_function_code(cls, data: bytes) -> int:
+        """Decode sub function code (1 byte)."""
+        return int(data[2])
+
     def decode(self, data: bytes) -> None:
         """Decode data part of the message."""
-        self.sub_function_code, self.read_code, self.object_id = struct.unpack(">BBB", data)
+        self.sub_function_code, self.read_code, self.object_id = struct.unpack(">BBB", data[:3])
 
-    async def update_datastore(self, _context: ModbusSlaveContext) -> ModbusPDU:
-        """Run a read exception status request against the store."""
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
+        """Update diagnostic request on the given device."""
+        _ = context
         if not 0x00 <= self.object_id <= 0xFF:
-            return ExceptionResponse(self.function_code, ExceptionResponse.ILLEGAL_VALUE)
+            return ExceptionResponse(self.function_code, ExcCodes.ILLEGAL_VALUE)
         if not 0x00 <= self.read_code <= 0x04:
-            return ExceptionResponse(self.function_code, ExceptionResponse.ILLEGAL_VALUE)
+            return ExceptionResponse(self.function_code, ExcCodes.ILLEGAL_VALUE)
 
         information = DeviceInformationFactory.get(_MCB, self.read_code, self.object_id)
-        return ReadDeviceInformationResponse(read_code=self.read_code, information=information, dev_id=self.dev_id, transaction_id=self.transaction_id)
+        return ReadDeviceInformationResponse(read_code=self.read_code, information=information, dev_id=device_id, transaction_id=self.transaction_id)
 
 
 class ReadDeviceInformationResponse(ModbusPDU):
@@ -69,26 +78,26 @@ class ReadDeviceInformationResponse(ModbusPDU):
     sub_function_code = 0x0E
 
     @classmethod
-    def calculateRtuFrameSize(cls, buffer: bytes) -> int:
+    def calculateRtuFrameSize(cls, data: bytes) -> int:
         """Calculate the size of the message."""
         size = 8  # skip the header information
-        if (data_len := len(buffer)) < size:
+        if (data_len := len(data)) < size:
             return 999
-        count = int(buffer[7])
+        count = int(data[7])
 
         while count > 0:
             if data_len < size+2:
                 return 998
-            _, object_length = struct.unpack(">BB", buffer[size : size + 2])
+            _, object_length = struct.unpack(">BB", data[size : size + 2])
             size += object_length + 2
             count -= 1
         return size + 2
 
-    def __init__(self, read_code: int | None = None, information: dict | None = None, dev_id: int = 1, transaction_id: int = 0) -> None:
+    def __init__(self, read_code: int | None = None, information: dict[int, Any] | None = None, dev_id: int = 1, transaction_id: int = 0) -> None:
         """Initialize a new instance."""
         super().__init__(transaction_id=transaction_id, dev_id=dev_id)
         self.read_code = read_code or DeviceInformation.BASIC
-        self.information = information or {}
+        self.information: dict[int, Any] = information or {}
         self.number_of_objects = 0
         self.conformity = 0x83  # I support everything right now
         self.next_object_id = 0x00
@@ -131,13 +140,19 @@ class ReadDeviceInformationResponse(ModbusPDU):
         packet += objects
         return packet
 
+    @classmethod
+    def decode_sub_function_code(cls, data: bytes) -> int:
+        """Decode sub function code (1 byte)."""
+        return int(data[2])
+
     def decode(self, data: bytes) -> None:
         """Decode a the response."""
         params = struct.unpack(">BBBBBB", data[0:6])
         self.sub_function_code, self.read_code = params[0:2]
         self.conformity, self.more_follows = params[2:4]
         self.next_object_id, self.number_of_objects = params[4:6]
-        self.information, count = {}, 6  # skip the header information
+        count = 6  # skip the header information
+        self.information.clear()
 
         while count < len(data):
             object_id, object_length = struct.unpack(">BB", data[count : count + 2])
@@ -151,3 +166,6 @@ class ReadDeviceInformationResponse(ModbusPDU):
                     self.information[object_id],
                     data[count - object_length : count],
                 ]
+
+DecodePDU.add_pdu(ReadDeviceInformationRequest, ReadDeviceInformationResponse)
+DecodePDU.add_sub_pdu(ReadDeviceInformationRequest, ReadDeviceInformationResponse)

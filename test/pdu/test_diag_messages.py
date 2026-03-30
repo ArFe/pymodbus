@@ -1,7 +1,10 @@
 """Test diag messages."""
+from typing import cast
+
 import pytest
 
 from pymodbus.constants import ModbusPlusOperation, ModbusStatus
+from pymodbus.datastore import ModbusServerContext
 from pymodbus.pdu.diag_message import (
     ChangeAsciiInputDelimiterRequest,
     ChangeAsciiInputDelimiterResponse,
@@ -22,22 +25,22 @@ from pymodbus.pdu.diag_message import (
     ReturnBusExceptionErrorCountResponse,
     ReturnBusMessageCountRequest,
     ReturnBusMessageCountResponse,
+    ReturnDeviceBusCharacterOverrunCountRequest,
+    ReturnDeviceBusCharacterOverrunCountResponse,
+    ReturnDeviceBusyCountRequest,
+    ReturnDeviceBusyCountResponse,
+    ReturnDeviceMessageCountRequest,
+    ReturnDeviceMessageCountResponse,
+    ReturnDeviceNAKCountRequest,
+    ReturnDeviceNAKCountResponse,
+    ReturnDeviceNoResponseCountRequest,
+    ReturnDeviceNoResponseCountResponse,
     ReturnDiagnosticRegisterRequest,
     ReturnDiagnosticRegisterResponse,
     ReturnIopOverrunCountRequest,
     ReturnIopOverrunCountResponse,
     ReturnQueryDataRequest,
     ReturnQueryDataResponse,
-    ReturnSlaveBusCharacterOverrunCountRequest,
-    ReturnSlaveBusCharacterOverrunCountResponse,
-    ReturnSlaveBusyCountRequest,
-    ReturnSlaveBusyCountResponse,
-    ReturnSlaveMessageCountRequest,
-    ReturnSlaveMessageCountResponse,
-    ReturnSlaveNAKCountRequest,
-    ReturnSlaveNAKCountResponse,
-    ReturnSlaveNoResponseCountRequest,
-    ReturnSlaveNoResponseCountResponse,
 )
 
 
@@ -70,16 +73,16 @@ class TestDataStore:
             b"\x00\x0d\x00\x00",
             b"\x00\x0d\x00\x00",
         ),
-        (ReturnSlaveMessageCountRequest, b"\x00\x0e\x00\x00", b"\x00\x0e\x00\x00"),
+        (ReturnDeviceMessageCountRequest, b"\x00\x0e\x00\x00", b"\x00\x0e\x00\x00"),
         (
-            ReturnSlaveNoResponseCountRequest,
+            ReturnDeviceNoResponseCountRequest,
             b"\x00\x0f\x00\x00",
             b"\x00\x0f\x00\x00",
         ),
-        (ReturnSlaveNAKCountRequest, b"\x00\x10\x00\x00", b"\x00\x10\x00\x00"),
-        (ReturnSlaveBusyCountRequest, b"\x00\x11\x00\x00", b"\x00\x11\x00\x00"),
+        (ReturnDeviceNAKCountRequest, b"\x00\x10\x00\x00", b"\x00\x10\x00\x00"),
+        (ReturnDeviceBusyCountRequest, b"\x00\x11\x00\x00", b"\x00\x11\x00\x00"),
         (
-            ReturnSlaveBusCharacterOverrunCountRequest,
+            ReturnDeviceBusCharacterOverrunCountRequest,
             b"\x00\x12\x00\x00",
             b"\x00\x12\x00\x00",
         ),
@@ -105,11 +108,11 @@ class TestDataStore:
         (ReturnBusMessageCountResponse, b"\x00\x0b\x00\x00"),
         (ReturnBusCommunicationErrorCountResponse, b"\x00\x0c\x00\x00"),
         (ReturnBusExceptionErrorCountResponse, b"\x00\x0d\x00\x00"),
-        (ReturnSlaveMessageCountResponse, b"\x00\x0e\x00\x00"),
-        (ReturnSlaveNoResponseCountResponse, b"\x00\x0f\x00\x00"),
-        (ReturnSlaveNAKCountResponse, b"\x00\x10\x00\x00"),
-        (ReturnSlaveBusyCountResponse, b"\x00\x11\x00\x00"),
-        (ReturnSlaveBusCharacterOverrunCountResponse, b"\x00\x12\x00\x00"),
+        (ReturnDeviceMessageCountResponse, b"\x00\x0e\x00\x00"),
+        (ReturnDeviceNoResponseCountResponse, b"\x00\x0f\x00\x00"),
+        (ReturnDeviceNAKCountResponse, b"\x00\x10\x00\x00"),
+        (ReturnDeviceBusyCountResponse, b"\x00\x11\x00\x00"),
+        (ReturnDeviceBusCharacterOverrunCountResponse, b"\x00\x12\x00\x00"),
         (ReturnIopOverrunCountResponse, b"\x00\x13\x00\x00"),
         (ClearOverrunCountResponse, b"\x00\x14\x00\x00"),
         (GetClearModbusPlusResponse, b"\x00\x15\x00\x04" + b"\x00\x00" * 55),
@@ -126,7 +129,7 @@ class TestDataStore:
     def test_diagnostic_encode_error(self):
         """Testing diagnostic request/response can be decoded and encoded."""
         msg_obj = DiagnosticBase()
-        msg_obj.message = "not allowed"
+        msg_obj.message = "not allowed"  # type: ignore[assignment]
         with pytest.raises(TypeError):
             msg_obj.encode()
 
@@ -164,11 +167,11 @@ class TestDataStore:
         for msg, enc, _ in self.requests:
             assert msg().encode() == enc
 
-    async def test_diagnostic_update_datastore(self):
+    async def test_diagnostic_datastore_update(self):
         """Testing diagnostic message execution."""
-        for message, encoded, update_datastored in self.requests:
-            encoded = (await message().update_datastore(None)).encode()
-            assert encoded == update_datastored
+        for message, encoded, datastore_updated in self.requests:
+            encoded = (await message().datastore_update(cast(ModbusServerContext, None), 1)).encode()
+            assert encoded == datastore_updated
 
     def test_return_query_data_request(self):
         """Testing diagnostic message execution."""
@@ -196,13 +199,13 @@ class TestDataStore:
         response = RestartCommunicationsOptionResponse(message=ModbusStatus.OFF)
         assert response.encode() == b"\x00\x01\x00\x00"
 
-    async def test_get_clear_modbus_plus_request_update_datastore(self):
+    async def test_get_clear_modbus_plus_request_datastore_update(self):
         """Testing diagnostic message execution."""
         request = GetClearModbusPlusRequest(message=ModbusPlusOperation.CLEAR_STATISTICS)
-        response = await request.update_datastore(None)
-        assert response.message == ModbusPlusOperation.CLEAR_STATISTICS
+        response = await request.datastore_update(cast(ModbusServerContext, None), 0)
+        assert cast(GetClearModbusPlusResponse, response).message == ModbusPlusOperation.CLEAR_STATISTICS
 
         request = GetClearModbusPlusRequest(message=ModbusPlusOperation.GET_STATISTICS)
-        response = await request.update_datastore(None)
+        response = await request.datastore_update(cast(ModbusServerContext, None), 0)
         resp = [ModbusPlusOperation.GET_STATISTICS]
-        assert response.message == resp + [0x00] * 55
+        assert cast(GetClearModbusPlusResponse, response).message == resp + [0x00] * 55

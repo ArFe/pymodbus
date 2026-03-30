@@ -17,7 +17,7 @@ from pymodbus import pymodbus_apply_logging_config
 _logger = logging.getLogger(__file__)
 
 
-def get_commandline(server: bool = False, description: str | None = None, extras: Any = None, cmdline: str | None = None):
+def get_commandline(server: bool = False, description: str | None = None, extras: Any = None, cmdline: list[str] | None = None):
     """Read and check command line arguments."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
@@ -68,15 +68,8 @@ def get_commandline(server: bool = False, description: str | None = None, extras
     )
     if server:
         parser.add_argument(
-            "--store",
-            choices=["sequential", "sparse", "factory", "none"],
-            help="set type of datastore",
-            default="sequential",
-            type=str,
-        )
-        parser.add_argument(
-            "--slaves",
-            help="set number of slaves, default is 0 (any)",
+            "--device_ids",
+            help="set number of device_ids, default is 0 (any)",
             default=0,
             type=int,
         )
@@ -92,7 +85,7 @@ def get_commandline(server: bool = False, description: str | None = None, extras
             default=10,
             type=float,
         )
-    if extras:
+    if extras:  # pragma: no cover
         for extra in extras:
             parser.add_argument(extra[0], **extra[1])
     args = parser.parse_args(cmdline)
@@ -105,6 +98,7 @@ def get_commandline(server: bool = False, description: str | None = None, extras
         "tls": ["tls", 5020],
     }
     pymodbus_apply_logging_config(args.log.upper())
+    logging.basicConfig(level=args.log.upper())
     _logger.setLevel(args.log.upper())
     if not args.framer:
         args.framer = comm_defaults[args.comm][0]
@@ -120,14 +114,14 @@ def get_certificate(suffix: str):
     """Get example certificate."""
     delimiter = "\\" if os.name == "nt" else "/"
     cwd = os.getcwd().split(delimiter)[-1]
-    if cwd == "examples":
+    if cwd == "examples":  # pragma: no cover
         path = "."
-    elif cwd == "sub_examples":
+    elif cwd == "sub_examples":  # pragma: no cover
         path = "../../examples"
-    elif cwd == "test":
+    elif cwd == "test":  # pragma: no cover
         path = "../examples"
-    elif cwd == "pymodbus":
+    elif cwd == "pymodbus":  # pragma: no cover
         path = "examples"
     else:
         raise RuntimeError(f"**Error** Cannot find certificate path={cwd}")
-    return f"{path}/certificates/pymodbus.{suffix}"
+    return f"{path}/certificates/pymodbus_tls.{suffix}"

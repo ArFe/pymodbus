@@ -36,7 +36,7 @@ import sys
 try:
     import helper  # type: ignore[import-not-found]
 except ImportError:
-    print("*** ERROR --> THIS EXAMPLE needs the example directory, please see \n\
+    print("*** ERROR --> THIS EXAMPLE needs to be run in the example directory, please see \n\
           https://pymodbus.readthedocs.io/en/latest/source/examples.html\n\
           for more information.")
     sys.exit(-1)
@@ -44,11 +44,10 @@ except ImportError:
 import pymodbus.client as modbusClient
 
 
-_logger = logging.getLogger(__file__)
-_logger.setLevel("DEBUG")
+_logger = logging.getLogger(__name__)
 
 
-def setup_async_client(description: str | None =None, cmdline: str | None = None) -> modbusClient.ModbusBaseClient:
+def setup_async_client(description: str | None =None, cmdline: list[str] | None = None) -> modbusClient.ModbusBaseClient:
     """Run client setup."""
     args = helper.get_commandline(
         server=False, description=description, cmdline=cmdline
@@ -125,9 +124,9 @@ async def run_async_client(client, modbus_calls=None):
 
 async def run_a_few_calls(client):
     """Test connection works."""
-    rr = await client.read_coils(32, count=1, slave=1)
+    rr = await client.read_coils(32, count=1, device_id=1)
     assert len(rr.bits) == 8
-    rr = await client.read_holding_registers(4, count=2, slave=1)
+    rr = await client.read_holding_registers(4, count=2, device_id=1)
     assert rr.registers[0] == 17
     assert rr.registers[1] == 17
 

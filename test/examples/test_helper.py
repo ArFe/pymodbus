@@ -17,8 +17,7 @@ class TestHelperExamples:
         assert args.baudrate == 9600
         assert args.framer
         assert args.port
-        assert args.store
-        assert not args.slaves
+        assert not args.device_ids
         assert not args.context
 
     def test_commandline_client_defaults(self):

@@ -31,13 +31,6 @@ Source: :github:`examples/simple_sync_client.py`
 .. literalinclude:: ../../examples/simple_sync_client.py
 
 
-Client performance sync vs async
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Source: :github:`examples/client_performance.py`
-
-.. literalinclude:: ../../examples/client_performance.py
-
-
 Advanced examples
 -----------------
 
@@ -106,15 +99,6 @@ Source: :github:`examples/server_async.py`
     :noindex:
 
 
-Server callback
-^^^^^^^^^^^^^^^
-Source: :github:`examples/server_callback.py`
-
-.. automodule:: examples.server_callback
-    :undoc-members:
-    :noindex:
-
-
 Server tracer
 ^^^^^^^^^^^^^
 Source: :github:`examples/server_hook.py`
@@ -169,15 +153,6 @@ Source: :github:`examples/message_parser.py`
     :noindex:
 
 
-Modbus forwarder
-^^^^^^^^^^^^^^^^
-Source: :github:`examples/modbus_forwarder.py`
-
-.. automodule:: examples.modbus_forwarder
-    :undoc-members:
-    :noindex:
-
-
 Examples contributions
 ----------------------
 
@@ -192,11 +167,3 @@ Source: :github:`examples/contrib/solar.py`
     :undoc-members:
     :noindex:
 
-
-Serial Forwarder
-^^^^^^^^^^^^^^^^
-Source: :github:`examples/contrib/serial_forwarder.py`
-
-.. automodule:: examples.contrib.serial_forwarder
-    :undoc-members:
-    :noindex:

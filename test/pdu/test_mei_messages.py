@@ -3,10 +3,12 @@
 This fixture tests the functionality of all the
 mei based request/response messages:
 """
+from typing import cast
+
 import pytest
 
 from pymodbus.constants import DeviceInformation
-from pymodbus.device import ModbusControlBlock
+from pymodbus.pdu.device import ModbusControlBlock
 from pymodbus.pdu.mei_message import (
     ReadDeviceInformationRequest,
     ReadDeviceInformationResponse,
@@ -39,9 +41,9 @@ class TestMeiMessage:
         assert handle.read_code == DeviceInformation.BASIC
         assert not handle.object_id
 
-    async def test_read_device_information_request(self):
+    async def test_read_device_information_request(self, mock_server_context):
         """Test basic bit message encoding/decoding."""
-        context = None
+        context = mock_server_context()
         control = ModbusControlBlock()
         control.Identity.VendorName = "Company"
         control.Identity.ProductCode = "Product"
@@ -49,7 +51,7 @@ class TestMeiMessage:
         control.Identity.update({0x81: ["Test", "Repeated"]})
 
         handle = ReadDeviceInformationRequest()
-        result = await handle.update_datastore(context)
+        result = await handle.datastore_update(context, 0)
         assert isinstance(result, ReadDeviceInformationResponse)
         assert result.information[0x00] == "Company"
         assert result.information[0x01] == "Product"
@@ -60,26 +62,35 @@ class TestMeiMessage:
         handle = ReadDeviceInformationRequest(
             read_code=DeviceInformation.EXTENDED, object_id=0x80
         )
-        result = await handle.update_datastore(context)
-        assert result.information[0x81] == ["Test", "Repeated"]
+        result = await handle.datastore_update(context, 0)
+        assert cast(ReadDeviceInformationResponse, result).information[0x81] == ["Test", "Repeated"]
 
-    async def test_read_device_information_request_error(self):
+    async def test_read_device_information_request_error(self, mock_server_context):
         """Test basic bit message encoding/decoding."""
+        context = mock_server_context()
         handle = ReadDeviceInformationRequest()
         handle.read_code = -1
-        assert (await handle.update_datastore(None)).function_code == 0xAB
+        assert (await handle.datastore_update(context, 0)).function_code == 0xAB
         handle.read_code = 0x05
-        assert (await handle.update_datastore(None)).function_code == 0xAB
+        assert (await handle.datastore_update(context, 0)).function_code == 0xAB
         handle.object_id = -1
-        assert (await handle.update_datastore(None)).function_code == 0xAB
+        assert (await handle.datastore_update(context, 0)).function_code == 0xAB
         handle.object_id = 0x100
-        assert (await handle.update_datastore(None)).function_code == 0xAB
+        assert (await handle.datastore_update(context, 0)).function_code == 0xAB
 
     def test_read_device_information_calc1(self):
         """Test calculateRtuFrameSize, short buffer."""
         handle = ReadDeviceInformationResponse()
         assert handle.calculateRtuFrameSize(b"\x0e\x01\x83") == 999
         assert handle.calculateRtuFrameSize(b"\x0e\x01\x83\x00\x00\x03\x01\x03") == 998
+
+
+    def test_read_device_information_sub_fc(self):
+        """Test calculateRtuFrameSize, short buffer."""
+        handle = ReadDeviceInformationResponse()
+        assert handle.decode_sub_function_code(b"\x0e\x01\x83") == 0x83
+        handle2 = ReadDeviceInformationRequest()
+        assert handle2.decode_sub_function_code(b"\x0e\x01\x83") == 0x83
 
     def test_read_device_information_encode(self):
         """Test that the read fifo queue response can encode."""
@@ -142,7 +153,7 @@ class TestMeiMessage:
         message = b"\x0e\x01\x01\x00\x00\x05"
         message += TEST_MESSAGE
         message += b"\x81\x04Test\x81\x08Repeated\x81\x07Another"
-        handle = ReadDeviceInformationResponse(read_code=0x00, information=[])
+        handle = ReadDeviceInformationResponse(read_code=0x00, information={})
         handle.decode(message)
         assert handle.read_code == DeviceInformation.BASIC
         assert handle.conformity == 0x01

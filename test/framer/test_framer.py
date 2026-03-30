@@ -69,6 +69,18 @@ class TestFramer:
         assert FramerRTU.compute_CRC(data) == 0xE2DB
         assert FramerRTU.check_CRC(data, 0xE2DB)
 
+    async def test_handleFrame2(self):
+        """Test handleFrame."""
+        test_framer = FramerRTU(DecodePDU(True))
+        msg = b"\xfe\x04\x00\x03\x00\x01\xd5\xc5\x00"
+        used_len, pdu = test_framer.handleFrame(msg, 0, 0)
+        assert used_len == len(msg)
+        assert pdu
+
+    async def test_multidrop_timing(self):
+        """Test bz_bps=."""
+        # assert FramerRTU(DecodePDU(True), multidrop = (8, 2, 9600, []))
+        # assert FramerRTU(DecodePDU(True), multidrop = (8, 2, 38400, []))
 
 class TestFramerType:
     """Test classes."""
@@ -388,32 +400,32 @@ class TestFramerType:
         assert not res_data
 
     @pytest.mark.parametrize(("is_server"), [False])
-    async def test_processIncomingFrame_no(self, test_framer):
-        """Test processIncomingFrame."""
+    async def test_handleFrame_no(self, test_framer):
+        """Test handleFrame."""
         msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        with mock.patch.object(test_framer, "_processIncomingFrame") as mock_process:
-            mock_process.side_effect = [(5, None), (0, None)]
-            used_len, pdu = test_framer.processIncomingFrame(msg)
+        with mock.patch.object(test_framer, "decode") as mock_process:
+            mock_process.side_effect = [(5, 0, 0, None), (0, 0, 0, None)]
+            used_len, pdu = test_framer.handleFrame(msg, 0, 0)
             assert used_len == 5
             assert not pdu
 
     @pytest.mark.parametrize(("is_server"), [True])
-    async def test_processIncomingFrame1(self, test_framer):
-        """Test processIncomingFrame."""
+    async def test_handleFrame1(self, test_framer):
+        """Test handleFrame."""
         msg = b"\x00\x01\x00\x00\x00\x01\xfc\x1b"
-        _, pdu = test_framer.processIncomingFrame(msg)
+        _, pdu = test_framer.handleFrame(msg, 0, 0)
         assert pdu
 
     @pytest.mark.parametrize(("is_server"), [True])
     @pytest.mark.parametrize(("entry", "msg"), [
-        (FramerType.SOCKET, b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"),
-        (FramerType.TLS, b"\x00\x01\x12\x34\x00\x06\xff\x02\x01\x02\x00\x08"),
+        (FramerType.SOCKET, b"\x00\x01\x00\x00\x00\x06\xff\x02\x01\x02\x00\x08"),
+        (FramerType.TLS, b"\x00\x01\x00\x00\x00\x06\xff\x02\x01\x02\x00\x08"),
         (FramerType.RTU, b"\x00\x01\x00\x00\x00\x01\xfc\x1b"),
         (FramerType.ASCII, b":F7031389000A60\r\n"),
     ])
-    def test_processIncomingFrame2(self, test_framer, msg):
+    def test_handleFrame2(self, test_framer, msg):
         """Test a tcp frame transaction."""
-        used_len, pdu = test_framer.processIncomingFrame(msg)
+        used_len, pdu = test_framer.handleFrame(msg, 0, 0)
         assert pdu
         assert used_len == len(msg)
 
@@ -425,16 +437,16 @@ class TestFramerType:
         (FramerType.RTU, b"\x00\x01\x00\x00\x00\x01\xfc\x1b", 0, 0),
         (FramerType.ASCII, b":F7031389000A60\r\n", 0xf7, 0),
     ])
-    def test_processIncomingFrame_roundtrip(self, entry, test_framer, msg, dev_id, tid, half):
+    def test_handleFrame_roundtrip(self, entry, test_framer, msg, dev_id, tid, half):
         """Test a tcp frame transaction."""
         if half and entry != FramerType.TLS:
             data_len = int(len(msg) / 2)
-            used_len, pdu = test_framer.processIncomingFrame(msg[:data_len])
+            used_len, pdu = test_framer.handleFrame(msg[:data_len], 0, 0)
             assert not pdu
             assert not used_len
-            used_len, result = test_framer.processIncomingFrame(msg)
+            used_len, result = test_framer.handleFrame(msg, 0, 0)
         else:
-            used_len, result = test_framer.processIncomingFrame(msg)
+            used_len, result = test_framer.handleFrame(msg, 0, 0)
         assert used_len == len(msg)
         assert result
         assert result.dev_id == dev_id
@@ -463,6 +475,21 @@ class TestFramerType:
             actual = test_framer.buildFrame(message)
             assert msg == actual
 
+    def test_invalid_protocol_id_for_framer_socket(self):
+        """Test that ModbusSocketFramer rejects an invalid Protocol ID."""
+        framer = FramerSocket(DecodePDU(False))
 
+        # Construct a Modbus TCP header with invalid Protocol ID (nonzero)
+        # Transaction ID = 1
+        # Protocol ID   = 1 (invalid, expected 0)
+        # Length        = 3
+        # Unit          = 1
+        # Function code = 3
+        data = b"\x00\x01\x00\x01\x00\x03\x01\x03\x00"
 
-#    @pytest.mark.parametrize(("entry"), list(FramerType))
+        msg_len, dev_id, tid, pdu = framer.decode(data)
+
+        assert msg_len == 0
+        assert dev_id == 0
+        assert tid == 0
+        assert pdu == framer.EMPTY

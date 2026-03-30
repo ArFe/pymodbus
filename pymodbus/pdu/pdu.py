@@ -2,12 +2,9 @@
 from __future__ import annotations
 
 import asyncio
-import struct
-from abc import abstractmethod
 
-from pymodbus.datastore import ModbusSlaveContext
-from pymodbus.exceptions import NotImplementedException
-from pymodbus.logging import Log
+from ..datastore import ModbusServerContext
+from ..exceptions import ModbusIOException, NotImplementedException
 
 
 class ModbusPDU:
@@ -29,13 +26,17 @@ class ModbusPDU:
         ) -> None:
         """Initialize the base data for a modbus request."""
         self.dev_id: int = dev_id
+        if dev_id > 255:
+            raise ModbusIOException(f"Invalid ID {dev_id}")
         self.transaction_id: int = transaction_id
         self.address: int = address
         self.bits: list[bool] = bits or []
         self.registers: list[int] = registers or []
         self.count: int = count or len(self.registers)
         self.status: int = status
+        self.exception_code: int = 0
         self.fut: asyncio.Future
+        self.retries: int = 0
 
     def isError(self) -> bool:
         """Check if the error is a success or failure."""
@@ -55,8 +56,14 @@ class ModbusPDU:
         if not 0 <= address <= 65535:
             raise ValueError(f"0 < address {address} < 65535 !")
 
+    @classmethod
+    def decode_sub_function_code(cls, data: bytes) -> int:
+        """Decode sub function code."""
+        _ = data
+        return -1
+
     def __str__(self) -> str:
-        """Build a representation of an exception response."""
+        """Build a representation of a Modbus response."""
         return (
             f"{self.__class__.__name__}("
             f"dev_id={self.dev_id}, "
@@ -65,25 +72,27 @@ class ModbusPDU:
             f"count={self.count}, "
             f"bits={self.bits!s}, "
             f"registers={self.registers!s}, "
-            f"status={self.status!s})"
+            f"status={self.status!s}, "
+            f"retries={self.retries})"
         )
 
     def get_response_pdu_size(self) -> int:
         """Calculate response pdu size."""
         return 0
 
-    @abstractmethod
     def encode(self) -> bytes:
         """Encode the message."""
+        return b''
 
-    @abstractmethod
     def decode(self, data: bytes) -> None:
         """Decode data part of the message."""
 
-    async def update_datastore(self, context: ModbusSlaveContext) -> ModbusPDU:
-        """Run request against a datastore."""
-        _ = context
-        return ExceptionResponse(0, 0)
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
+        """Update diagnostic request on the given device."""
+        _ = context, device_id
+        raise NotImplementedException(
+            f"update datastore called wrongly {self.__class__.__name__}"
+        )
 
     @classmethod
     def calculateRtuFrameSize(cls, data: bytes) -> int:
@@ -97,40 +106,3 @@ class ModbusPDU:
         raise NotImplementedException(
             f"Cannot determine RTU frame size for {cls.__name__}"
         )
-
-
-class ExceptionResponse(ModbusPDU):
-    """Base class for a modbus exception PDU."""
-
-    rtu_frame_size = 5
-
-    ILLEGAL_FUNCTION = 0x01
-    ILLEGAL_ADDRESS = 0x02
-    ILLEGAL_VALUE = 0x03
-    SLAVE_FAILURE = 0x04
-    ACKNOWLEDGE = 0x05
-    SLAVE_BUSY = 0x06
-    NEGATIVE_ACKNOWLEDGE = 0x07
-    MEMORY_PARITY_ERROR = 0x08
-    GATEWAY_PATH_UNAVIABLE = 0x0A
-    GATEWAY_NO_RESPONSE = 0x0B
-
-    def __init__(
-            self,
-            function_code: int,
-            exception_code: int = 0,
-            slave: int = 1,
-            transaction: int = 0) -> None:
-        """Initialize the modbus exception response."""
-        super().__init__(transaction_id=transaction, dev_id=slave)
-        self.function_code = function_code | 0x80
-        self.exception_code = exception_code
-        Log.error(f"Exception response {self.function_code} / {self.exception_code}")
-
-    def encode(self) -> bytes:
-        """Encode a modbus exception response."""
-        return struct.pack(">B", self.exception_code)
-
-    def decode(self, data: bytes) -> None:
-        """Decode a modbus exception response."""
-        self.exception_code = int(data[0])

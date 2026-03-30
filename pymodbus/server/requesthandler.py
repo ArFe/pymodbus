@@ -4,11 +4,12 @@ from __future__ import annotations
 import asyncio
 import traceback
 
-from pymodbus.exceptions import ModbusIOException, NoSuchSlaveException
-from pymodbus.logging import Log
-from pymodbus.pdu.pdu import ExceptionResponse
-from pymodbus.transaction import TransactionManager
-from pymodbus.transport import CommParams, ModbusProtocol
+from ..constants import ExcCodes
+from ..exceptions import ModbusIOException, NoSuchIdException
+from ..logging import Log
+from ..pdu import ExceptionResponse
+from ..transaction import TransactionManager
+from ..transport import CommParams
 
 
 class ServerRequestHandler(TransactionManager):
@@ -27,11 +28,13 @@ class ServerRequestHandler(TransactionManager):
             handle_local_echo=owner.comm_params.handle_local_echo,
         )
         self.server = owner
-        self.framer = self.server.framer(self.server.decoder)
         self.running = False
+        framer = owner.framer(owner.decoder)
+        if owner.allow_multiple_devices:
+            framer.setMultidrop(owner.context.device_ids())
         super().__init__(
             params,
-            self.framer,
+            framer,
             0,
             True,
             trace_packet,
@@ -39,39 +42,20 @@ class ServerRequestHandler(TransactionManager):
             trace_connect,
         )
 
-    def callback_new_connection(self) -> ModbusProtocol:
-        """Call when listener receive new connection request."""
-        raise RuntimeError("callback_new_connection should never be called")
-
-    def callback_connected(self) -> None:
-        """Call when connection is succcesfull."""
-        super().callback_connected()
-        slaves = self.server.context.slaves()
-        if self.server.broadcast_enable:
-            if 0 not in slaves:
-                slaves.append(0)
-
-    def callback_disconnected(self, call_exc: Exception | None) -> None:
+    def callback_disconnected(self, exc: Exception | None) -> None:
         """Call when connection is lost."""
-        super().callback_disconnected(call_exc)
-        try:
-            if call_exc is None:
-                Log.debug(
-                    "Handler for stream [{}] has been canceled", self.comm_params.comm_name
-                )
-            else:
-                Log.debug(
-                    "Client Disconnection {} due to {}",
-                    self.comm_params.comm_name,
-                    call_exc,
-                )
-            self.running = False
-        except Exception as exc:  # pylint: disable=broad-except
-            Log.error(
-                "Datastore unable to fulfill request: {}; {}",
-                exc,
-                traceback.format_exc(),
+        super().callback_disconnected(exc)
+        if exc is None:
+            Log.debug(
+                "Handler for stream [{}] has been canceled", self.comm_params.comm_name
             )
+        else:
+            Log.debug(
+                "Client Disconnection {} due to {}",
+                self.comm_params.comm_name,
+                exc,
+            )
+        self.running = False
 
     def callback_data(self, data: bytes, addr: tuple | None = None) -> int:
         """Handle received data."""
@@ -80,7 +64,7 @@ class ServerRequestHandler(TransactionManager):
         except ModbusIOException:
             response = ExceptionResponse(
                 40,
-                exception_code=ExceptionResponse.ILLEGAL_FUNCTION
+                exception_code=ExcCodes.ILLEGAL_FUNCTION
             )
             self.server_send(response, 0)
             return(len(data))
@@ -94,37 +78,33 @@ class ServerRequestHandler(TransactionManager):
 
     async def handle_request(self):
         """Handle request."""
-        broadcast = False
         if not self.last_pdu:
             return
         try:
             if self.server.broadcast_enable and not self.last_pdu.dev_id:
-                broadcast = True
-                # if broadcasting then execute on all slave contexts,
+                # if broadcasting then execute on all device contexts,
                 # note response will be ignored
-                for dev_id in self.server.context.slaves():
-                    response = await self.last_pdu.update_datastore(self.server.context[dev_id])
-            else:
-                context = self.server.context[self.last_pdu.dev_id]
-                response = await self.last_pdu.update_datastore(context)
+                for dev_id in self.server.context.device_ids():
+                    await self.last_pdu.datastore_update(self.server.context, dev_id)
+                return
+            response = await self.last_pdu.datastore_update(self.server.context, self.last_pdu.dev_id)
 
-        except NoSuchSlaveException:
-            Log.error("requested slave does not exist: {}", self.last_pdu.dev_id)
-            if self.server.ignore_missing_slaves:
+        except NoSuchIdException:
+            if self.server.ignore_missing_devices:
+                Log.debug("ignoring request for unknown device id: {}", self.last_pdu.dev_id)
                 return  # the client will simply timeout waiting for a response
-            response = ExceptionResponse(0x00, ExceptionResponse.GATEWAY_NO_RESPONSE)
+            Log.error("requested device id does not exist: {}", self.last_pdu.dev_id)
+            response = ExceptionResponse(self.last_pdu.function_code, ExcCodes.GATEWAY_NO_RESPONSE)
         except Exception as exc:  # pylint: disable=broad-except
             Log.error(
                 "Datastore unable to fulfill request: {}; {}",
                 exc,
                 traceback.format_exc(),
             )
-            response = ExceptionResponse(0x00, ExceptionResponse.SLAVE_FAILURE)
-        # no response when broadcasting
-        if not broadcast:
-            response.transaction_id = self.last_pdu.transaction_id
-            response.dev_id = self.last_pdu.dev_id
-            self.server_send(response, self.last_addr)
+            response = ExceptionResponse(self.last_pdu.function_code, ExcCodes.DEVICE_FAILURE)
+        response.transaction_id = self.last_pdu.transaction_id
+        response.dev_id = self.last_pdu.dev_id
+        self.server_send(response, self.last_addr)
 
     def server_send(self, pdu, addr):
         """Send message."""

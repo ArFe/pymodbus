@@ -8,7 +8,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from pymodbus.datastore.context import ModbusBaseSlaveContext
+from ..constants import ExcCodes
+from ..logging import Log
 
 
 WORD_SIZE = 16
@@ -219,7 +220,7 @@ class Setup:
     def handle_setup_section(self):
         """Load setup section."""
         layout = Label.try_get(Label.setup, self.config)
-        self.runtime.fc_offset = {key: 0 for key in range(25)}
+        self.runtime.fc_offset = dict.fromkeys(range(25), 0)
         size_co = Label.try_get(Label.co_size, layout)
         size_di = Label.try_get(Label.di_size, layout)
         size_hr = Label.try_get(Label.hr_size, layout)
@@ -339,15 +340,15 @@ class Setup:
         }
         if custom_actions:
             actions.update(custom_actions)
-        self.runtime.action_name_to_id = {None: 0}
+
         self.runtime.action_id_to_name = [Label.none]
         self.runtime.action_methods = [None]
-        i = 1
-        for key, method in actions.items():
+        for i, (key, method) in enumerate(actions.items(), start=1):
             self.runtime.action_name_to_id[key] = i
             self.runtime.action_id_to_name.append(key)
             self.runtime.action_methods.append(method)
-            i += 1
+        self.runtime.action_name_to_id.update({None: 0})
+
         self.runtime.registerType_name_to_id = {
             Label.type_bits: CellType.BITS,
             Label.type_uint16: CellType.UINT16,
@@ -357,11 +358,15 @@ class Setup:
             Label.next: CellType.NEXT,
             Label.invalid: CellType.INVALID,
         }
-        self.runtime.registerType_id_to_name = [None] * len(
-            self.runtime.registerType_name_to_id
-        )
-        for name, cell_type in self.runtime.registerType_name_to_id.items():
-            self.runtime.registerType_id_to_name[cell_type] = name
+        self.runtime.registerType_id_to_name = [
+            "invalid",    # 0
+            "bits",       # 1
+            "uint16",     # 2
+            "uint32",     # 3
+            "float32",    # 4
+            "string",     # 5
+            "next",       # 6
+        ]
 
         self.config = config
         self.handle_setup_section()
@@ -373,7 +378,7 @@ class Setup:
             raise RuntimeError(f"INVALID key in setup: {self.config}")
 
 
-class ModbusSimulatorContext(ModbusBaseSlaveContext):
+class ModbusSimulatorContext:
     """Modbus simulator.
 
     :param config: A dict with structure as shown below.
@@ -481,7 +486,12 @@ class ModbusSimulatorContext(ModbusBaseSlaveContext):
         self.action_methods: list[Callable] = []
         self.registerType_name_to_id: dict[str, int] = {}
         self.registerType_id_to_name: list[str] = []
-        Setup(self).setup(config, custom_actions)
+        if config:
+            Setup(self).setup(config, custom_actions)
+        Log.warning("ModbusSimulatorContext is deprecated "
+                    "and will be removed in v4.\n"
+                    "Please convert to SimData/SimDevice.\n"
+                    "Please read https://pymodbus.readthedocs.io/en/dev/source/upgrade_40.html#convert-to-simdata-simdevice")
 
     # --------------------------------------------
     # Simulator server interface
@@ -534,11 +544,60 @@ class ModbusSimulatorContext(ModbusBaseSlaveContext):
     _write_func_code = (5, 6, 15, 16, 22, 23)
     _bits_func_code = (1, 2, 5, 15)
 
-    def getValues(self, func_code, address, count=1):
+    def loop_validate(self, address, end_address, fx_write):
+        """Validate entry in loop.
+
+        :meta private:
+        """
+        i = address
+        while i < end_address:
+            reg = self.registers[i]
+            if (fx_write and not reg.access) or reg.type == CellType.INVALID:
+                return False
+            if not self.type_exception:
+                i += 1
+                continue
+            if reg.type == CellType.NEXT:
+                return False
+            if reg.type in (CellType.BITS, CellType.UINT16):
+                i += 1
+            elif reg.type in (CellType.UINT32, CellType.FLOAT32):
+                if i + 1 >= end_address:
+                    return False
+                i += 2
+            else:
+                i += 1
+                while i < end_address:
+                    if self.registers[i].type == CellType.NEXT:
+                        i += 1
+                    else:
+                        return False
+        return True
+
+    def validate(self, func_code, address, count=1):
+        """Check to see if the request is in range.
+
+        :meta private:
+        """
+        if func_code in self._bits_func_code:
+            # Bit count, correct to register count
+            count = int((count + WORD_SIZE - 1) / WORD_SIZE)
+            address = int(address / 16)
+
+        real_address = self.fc_offset[func_code] + address
+        if real_address < 0 or real_address > self.register_count:
+            return False
+
+        fx_write = func_code in self._write_func_code
+        return self.loop_validate(real_address, real_address + count, fx_write)
+
+    async def async_OLD_getValues(self, func_code, address, count=1) -> list[int] | list[bool] | ExcCodes:
         """Return the requested values of the datastore.
 
         :meta private:
         """
+        if not self.validate(func_code, address, count):
+            return ExcCodes.ILLEGAL_ADDRESS
         result = []
         if func_code not in self._bits_func_code:
             real_address = self.fc_offset[func_code] + address
@@ -569,7 +628,7 @@ class ModbusSimulatorContext(ModbusBaseSlaveContext):
                 bit_index = 0
         return result
 
-    def setValues(self, func_code, address, values):
+    async def async_OLD_setValues(self, func_code, address, values) -> None | ExcCodes:
         """Set the requested values of the datastore.
 
         :meta private:
@@ -577,15 +636,20 @@ class ModbusSimulatorContext(ModbusBaseSlaveContext):
         if func_code not in self._bits_func_code:
             real_address = self.fc_offset[func_code] + address
             for value in values:
+                if not self.validate(func_code, address):
+                    return ExcCodes.ILLEGAL_ADDRESS
                 self.registers[real_address].value = value
                 self.registers[real_address].count_write += 1
                 real_address += 1
-            return
+                address += 1
+            return None
 
         # bit access
         real_address = self.fc_offset[func_code] + int(address / 16)
         bit_index = address % 16
         for value in values:
+            if not self.validate(func_code, address):
+                return ExcCodes.ILLEGAL_ADDRESS
             bit_mask = 2**bit_index
             if bool(value):
                 self.registers[real_address].value |= bit_mask
@@ -596,7 +660,8 @@ class ModbusSimulatorContext(ModbusBaseSlaveContext):
             if bit_index == 16:
                 bit_index = 0
                 real_address += 1
-        return
+                address += 1
+        return None
 
     # --------------------------------------------
     # Internal action methods
@@ -649,7 +714,7 @@ class ModbusSimulatorContext(ModbusBaseSlaveContext):
             new_regs = cls.build_registers_from_value(value, False)
             reg.value = new_regs[0]
             reg2.value = new_regs[1]
-        elif cell.type == CellType.UINT32:
+        else: # if cell.type == CellType.UINT32:
             tmp_reg = [reg.value, reg2.value]
             value = cls.build_value_from_registers(tmp_reg, True)
             value += 1
@@ -698,7 +763,7 @@ class ModbusSimulatorContext(ModbusBaseSlaveContext):
             regs = cls.build_registers_from_value(value, False)
             registers[inx].value = regs[0]
             registers[inx + 1].value = regs[1]
-        elif cell.type == CellType.UINT32:
+        else: # if cell.type == CellType.UINT32:
             regs = cls.build_registers_from_value(value, True)
             registers[inx].value = regs[0]
             registers[inx + 1].value = regs[1]

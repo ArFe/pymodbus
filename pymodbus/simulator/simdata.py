@@ -1,56 +1,19 @@
 """Simulator data model classes."""
 from __future__ import annotations
 
-from collections.abc import Callable
+import struct
 from dataclasses import dataclass
-from enum import Enum
-from typing import TypeAlias
+from typing import TypeAlias, cast
+
+from .simutils import DataType, SimUtils
 
 
-SimValueType: TypeAlias = int | float | str | bool | bytes
+SimValueType: TypeAlias = int | float | str | bytes | list[int] | list[float] | list[str] | list[bytes] | list[bool]
 
-class SimDataType(Enum):
-    """Register types, used to define group of registers.
 
-    This is the types pymodbus recognizes, actually the modbus standard do NOT define e.g. INT32,
-    but since nearly every device contain e.g. values of type INT32, it is available in pymodbus,
-    with automatic conversions to/from registers.
-    """
-
-    #: 1 integer == 1 register
-    INT16 = 1
-    #: 1 positive integer == 1 register
-    UINT16 = 2
-    #: 1 integer == 2 registers
-    INT32 = 3
-    #: 1 positive integer == 2 registers
-    UINT32 = 4
-    #: 1 integer == 4 registers
-    INT64 = 5
-    #: 1 positive integer == 4 register
-    UINT64 = 6
-    #: 1 float == 2 registers
-    FLOAT32 = 7
-    #: 1 float == 4 registers
-    FLOAT64 = 8
-    #: 1 string == len(string) / 2 registers
-    #:
-    #: .. tip:: String length must be a multiple of 2 (corresponding to registers).
-    STRING = 9
-    #: Shared mode: 16 bits == 1 register else 1 bit == 1 "register" (address)
-    BITS = 10
-    #: Raw registers
-    #:
-    #: .. warning:: Do not use as default, since it fills the memory and block other registrations.
-    REGISTERS = 11
-    #: Defube register address limits.
-    #:
-    #: .. tip:: It a single but special register, and therefore improves speed and memory usage compared to REGISTERS.
-    DEFAULT = 12
-
-@dataclass(frozen=True)
+@dataclass
 class SimData:
-    """Configure a group of continuous identical registers.
+    """Configure a group of continuous identical values/registers.
 
     **Examples**:
 
@@ -59,231 +22,189 @@ class SimData:
         SimData(
             address=100,
             count=5,
-            value=-123456
-            datatype=SimDataType.INT32
+            values=12345678
+            datatype=DataType.INT32
+        )
+        SimData(
+            address=100,
+            values=[1, 2, 3, 4, 5]
+            datatype=DataType.INT32
         )
 
-    The above code defines 5 INT32, each with the value -123456, in total 10 registers (address 100-109)
+    Each SimData defines 5 INT32 in total 10 registers (address 100-109)
 
-        .. code-block:: python
+
+    .. code-block:: python
+
+        SimData(
+            address=0,
+            count=1000,
+            values=0x1234
+            datatype=DataType.REGISTERS
+        )
+
+    Defines a range of registers (addresses) 0..999 each with the value 0x1234.
+
+
+    .. code-block:: python
+
+        SimData(
+            address=0,
+            count=1000,
+            datatype=DataType.INVALID
+        )
+
+    Defines a range of registers (addresses) 0..999 each marked as invalid.
+
+    .. code-block:: python
 
         SimData(
             address=100,
-            count=17,
-            value=-True
-            datatype=SimDataType.BITS
-        )
-
-    The above code defines 17 BITS (coils), each with the value True. In non-shared mode addresses are 100-115.
-
-    in shared mode BITS are stored in registers (16bit is one register), the address refer to the register,
-    addresses are 100-101 (with register 101 being padded with 15 bits)
-
-    .. tip:: use SimDatatype.DEFAULT to define register limits:
-
-    .. code-block:: python
-
-        SimData(
-            address=0,    # First legal registers
-            count=1000,   # last legal register is r+count-1
-            value=0x1234  # Default register value
-            datatype=SimDataType.DEFAULT
-        )
-
-    The above code sets the range of legal registers to 0..999 all with the value 0x1234.
-    Accessing non-defined registers will cause an exception response.
-
-    Remark that DEFAULT can be overwritten with other definitions:
-
-    .. code-block:: python
-
-        SimData(
-            address=0,    # First legal registers
-            count=1000,   # last legal register is r+count-1
-            value=0x1234  # Default register value
-            datatype=SimDataType.DEFAULT
+            count=16,
+            values=True
+            datatype=DataType.BITS
         )
         SimData(
-            address=6,
-            count=1,
-            value=117
-            datatype=SimDataType.INT32
+            address=100,
+            values=[True] * 16
+            datatype=DataType.BITS
+        )
+        SimData(
+            address=100,
+            values=0xffff,
+            datatype=DataType.REGISTERS
+        )
+        SimData(
+            address=100,
+            values=[0xffff],
+            datatype=DataType.REGISTERS
         )
 
-    Is a legal and normal combination.
+    Each SimData defines 16 BITS (coils), with value True.
 
-    .. attention:: Using SimDataType.DEFAULT is a LOT more efficient to define all registers, than \
-    the other datatypes. This is because default registers are not created unless written to, whereas \
-    the registers of other datatypes are each created as objects.
+    Value are stored in registers (16bit is 1 register).
+
+    In shared mode (coil and discrete inputs requests):
+        - address refers to the register, containing individual bits,
+          Individual bits within the register cannot be addressed,
+          unless "use_bit_as_address" is set on the device.
+
+    In non-shared mode (coil and discrete inputs requests)
+        - address refers to the bit.
     """
 
-    #: Address of first register, starting with 0.
-    #:
-    #: .. caution:: No default, must be defined.
+    #: Address of first register, starting with 0 (identical to the requests)
     address: int
 
-    #: Value of datatype, to initialize the registers (repeated with count, apart from string).
+    #: Count of datatype e.g.
     #:
-    #: Depending on in which block the object is used some value types are not legal e.g. float cannot
-    #: be used to define coils.
-    value: SimValueType = 0
-
-    #: Count of datatype e.g. count=3 datatype=SimdataType.INT32 is 6 registers.
+    #:    - count=3 datatype=DataType.REGISTERS is 3 registers.
+    #:    - count=3 datatype=DataType.INT32 is 6 registers.
+    #:    - count=1 datatype=DataType.STRING, values="ABCD" is 2 registers
+    #:    - count=2 datatype=DataType.STRING, values="ABCD" is 4 registers
     #:
-    #: SimdataType.STR is special, the value string is copied "count" times.
+    #: if values= is a list, count will be applied to the whole list, e.g.
     #:
-    #: - count=1, value="ABCD" is 2 registers
-    #: - count=3, value="ABCD" is 6 registers, with "ABCD" repeated 3 times.
+    #:    - count=3 datatype=DataType.REGISTERS values=[3,2] is 6 registers.
+    #:    - count=3 datatype=DataType.INT32 values=[3,2] is 12 registers.
+    #:    - count=2 datatype=DataType.STRING, values=["ABCD", 'EFGH'] is 8 registers
     count: int = 1
 
-    #: Datatype, used to check access and calculate register count.
-    #:
-    #: .. note:: Default is SimDataType.REGISTERS
-    datatype: SimDataType = SimDataType.REGISTERS
+    #: Value/Values of datatype,
+    #: will automatically be converted to registers, according to datatype.
+    values: SimValueType = 0
 
-    #: Optional function to call when registers are being read/written.
+    #: Used to check access and convert value to/from registers or mark as invalid.
+    datatype: DataType = DataType.INVALID
+
+    #: String encoding
     #:
-    #: **Example function:**
-    #:
-    #: .. code-block:: python
-    #:
-    #:     def my_action(
-    #:         addr: int,
-    #:         value: SimValueType) -> SimValueType:
-    #:             return value + 1
-    #:
-    #: .. tip:: use functools.partial to add extra parameters if needed.
-    action: Callable[[int, SimValueType], SimValueType] | None = None
+    #: Used to convert a SimData(DataType.STRING) to registers.
+    string_encoding: str = "utf-8"
+
+    #: Mark register(s) as readonly.
+    readonly: bool = False
+
+
+    def __check_simple(self):
+        """Check simple parameters."""
+        if not isinstance(self.address, int) or not 0 <= self.address <= 65535:
+            raise TypeError("0 <= address < 65535")
+        if not isinstance(self.count, int) or not 1 <= self.count <= 65536:
+            raise TypeError("1 <= count < 65536")
+        if self.address + self.count -1 > 65535:
+            raise TypeError("address= + count= outside address range")
+        if not isinstance(self.datatype, DataType):
+            raise TypeError("datatype= must by a DataType")
+        if self.values and self.datatype == DataType.INVALID:
+            raise TypeError("values= cannot be used with invalid=True")
+        if isinstance(self.values, list) and not self.values:
+            raise TypeError("values= list cannot be empty")
+        try:
+            "test string".encode(self.string_encoding)
+        except (UnicodeEncodeError, LookupError) as exc:
+            raise TypeError("string_encoding= not valid") from exc
+
+    def __check_parameters(self):
+        """Check all parameters."""
+        self.__check_simple()
+        x_values = self.values if isinstance(self.values, list) else [self.values]
+        x_datatype, _x_struct, _x_len = SimUtils.DATATYPE_STRUCT[self.datatype]
+        if self.datatype == DataType.BITS:
+            x_datatype = bool if isinstance(x_values[0], bool) else int
+        for x_value in x_values:
+            if self.datatype == DataType.BITS and x_datatype is int and isinstance(x_value, bool):
+                raise TypeError(f"values= {x_value} int and bool cannot be mixed")
+            if not isinstance(x_value, x_datatype):
+                raise TypeError(f"values= {x_value} is not {x_datatype!s}")
+            if x_datatype is str and not x_value:
+                raise TypeError("values= cannot contain empty string")
 
     def __post_init__(self):
         """Define a group of registers."""
-        if not isinstance(self.address, int) or not 0 <= self.address < 65535:
-            raise TypeError("0 <= address < 65535")
-        if not isinstance(self.count, int) or not 0 < self.count <= 65535:
-            raise TypeError("0 < count <= 65535")
-        if not isinstance(self.datatype, SimDataType):
-            raise TypeError("datatype not SimDataType")
-        if self.action and not callable(self.action):
-            raise TypeError("action not Callable")
-        if not isinstance(self.value, SimValueType):
-            raise TypeError("value not a supported type")
+        self.__check_parameters()
+
+    def build_registers_bits_block(self) -> list[bool]:
+        """Convert values= to registers from bits (1 bit in each register)."""
+        x_values = self.values if isinstance(self.values, list) else [self.values]
+        if isinstance(x_values[0], bool):
+            return cast(list[bool], x_values)
+        return SimUtils.registersToBits(cast(list[int], x_values))
+
+    def build_registers_bits_shared(self) -> list[int]:
+        """Convert values= to registers from bits (16 bits in each register)."""
+        x_values = self.values if isinstance(self.values, list) else [self.values]
+        if not isinstance(x_values[0], bool):
+            return cast(list[int], x_values)
+        if len(x_values) % 16:
+            raise TypeError(f"SimData address={self.address} values= must be a multiple of 16")
+        return SimUtils.bitsToRegisters(cast(list[bool], x_values))
+
+    def build_registers_string(self) -> list[int]:
+        """Convert values= to registers from string(s)."""
+        x_values = self.values if isinstance(self.values, list) else [self.values]
+        blocks_regs: list[int] = []
+        for value in x_values:
+            bytes_string = cast(str, value).encode(self.string_encoding)
+            regs = SimUtils.bytesToRegisters(bytes_string)
+            blocks_regs.extend(regs)
+        return blocks_regs
 
 
-@dataclass(frozen=True)
-class SimDevice:
-    """Configure a device with parameters and registers.
+    def build_registers(self, block_bits: bool) -> list[int] | list[bool]:
+        """Convert values= to registers."""
+        self.__check_parameters()
+        if self.datatype == DataType.STRING:
+            return self.build_registers_string() * self.count
+        if block_bits:
+            return self.build_registers_bits_block() * self.count
+        if self.datatype == DataType.BITS:
+            return self.build_registers_bits_shared() * self.count
 
-    Registers can be defined as shared or as 4 separate blocks.
-
-    shared_block means all requests access the same registers,
-    allowing e.g. input registers to be read with read_holding_register.
-
-    .. warning:: Shared mode cannot be mixed with non-shared mode !
-
-    In shared mode, individual coils/direct input cannot be addressed directly ! Instead
-    the register address is used with count. In non-shared mode coils/direct input can be
-    addressed directly individually.
-
-    **Device with shared registers**::
-
-        SimDevice(
-            id=1,
-            block_shared=[SimData(...)]
-        )
-
-    **Device with non-shared registers**::
-
-        SimDevice(
-            id=1,
-            block_coil=[SimData(...)],
-            block_direct=[SimData(...)],
-            block_holding=[SimData(...)],
-            block_input=[SimData(...)],
-        )
-
-    A server can contain either a single :class:`SimDevice` or list of :class:`SimDevice` to simulate a
-    multipoint line.
-    """
-
-    #: Address of device
-    #:
-    #: Default 0 means accept all devices, except those specifically defined.
-    id: int = 0
-
-    #: Enforce type checking, if True access are controlled to be conform with datatypes.
-    #:
-    #: Used to control that e.g. INT32 are not read as INT16.
-    type_check: bool = False
-
-    #: Use this block for shared registers (Modern devices).
-    #:
-    #: Requests accesses all registers in this block.
-    #:
-    #: .. warning:: cannot be used together with other block_* parameters!
-    block_shared: list[SimData] | None = None
-
-    #: Use this block for non-shared registers (very old devices).
-    #:
-    #: In this block an address is a single coil, there are no registers.
-    #:
-    #: Request of type read/write_coil accesses this block.
-    #:
-    #: .. tip:: block_coil/direct/holding/input must all be defined
-    block_coil: list[SimData] | None = None
-
-    #: Use this block for non-shared registers (very old devices).
-    #:
-    #: In this block an address is a single relay, there are no registers.
-    #:
-    #: Request of type read/write_direct_input accesses this block.
-    #:
-    #: .. tip:: block_coil/direct/holding/input must all be defined
-    block_direct: list[SimData] | None = None
-
-    #: Use this block for non-shared registers (very old devices).
-    #:
-    #: In this block an address is a register.
-    #:
-    #: Request of type read/write_holding accesses this block.
-    #:
-    #: .. tip:: block_coil/direct/holding/input must all be defined
-    block_holding: list[SimData] | None = None
-
-    #: Use this block for non-shared registers (very old devices).
-    #:
-    #: In this block an address is a register.
-    #:
-    #: Request of type read/write_input accesses this block.
-    #:
-    #: .. tip:: block_coil/direct/holding/input must all be defined
-    block_input: list[SimData] | None = None
-
-    def __post_init__(self):
-        """Define a device."""
-        if not isinstance(self.id, int) or not 0 <= self.id < 255:
-            raise TypeError("0 <= id < 255")
-        blocks = [(self.block_shared, "shared")]
-        if self.block_shared:
-            if self.block_coil or self.block_direct or self.block_holding or self.block_input:
-                raise TypeError("block_* cannot be combined with block_shared")
-        else:
-            blocks = [
-                (self.block_coil, "coil"),
-                (self.block_direct, "direct"),
-                (self.block_holding, "holding"),
-                (self.block_input, "input")]
-
-        for block, name in blocks:
-            if not block:
-                raise TypeError(f"block_{name} not defined")
-            if not isinstance(block, list):
-                raise TypeError(f"block_{name} not a list")
-            for entry in block:
-                if not isinstance(entry, SimData):
-                    raise TypeError(f"block_{name} contains non SimData entries")
-
-
-def SimCheckConfig(devices: list[SimDevice]) -> bool:
-    """Verify configuration."""
-    _ = devices
-    return False
+        x_values = self.values if isinstance(self.values, list) else [self.values]
+        _x_datatype, x_struct, _x_len = SimUtils.DATATYPE_STRUCT[self.datatype]
+        blocks_regs: list[int] = []
+        for v in x_values:
+            byte_list = struct.pack(f">{x_struct}", v)
+            blocks_regs.extend(SimUtils.bytesToRegisters(byte_list))
+        return blocks_regs

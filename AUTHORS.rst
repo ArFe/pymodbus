@@ -10,6 +10,7 @@ Pymodbus version 3 family
 -------------------------
 Thanks to
 
+- aaru-astranis
 - ahcm-dev
 - AKJ7
 - Alex
@@ -24,7 +25,9 @@ Thanks to
 - andrew-harness
 - banana-sun
 - Blaise Thompson
+- brambo123
 - Breina
+- brherger
 - CapraTheBest
 - cgernert
 - corollaries
@@ -41,15 +44,21 @@ Thanks to
 - Dries
 - duc996
 - efdx
+- embedded-bed
+- Erlend E. Aasland
 - Esco441-91
 - Farzad Panahi
+- Federico
+- FedericoMusa
 - Fredo70
 - Gao Fang
 - Ghostkeeper
 - Hangyu Fan
 - Hayden Roche
+- igorbga
 - Iktek
 - Ilkka Ollakka
+- Ivan
 - Jakob Ruhe
 - Jakob Schlyter
 - James Braza
@@ -62,16 +71,20 @@ Thanks to
 - Jonathan Reichelt Gjertsen
 - JorisW
 - julian
+- Julian Lunz
 - Justin Standring
 - Kenny Johansson
 - Kürşat Aktaş
 - laund
 - Logan Gunthorpe
+- Luke Hoggatt
+- Mark Deneen
 - Marko Luther
 - Martyy
 - Máté Szabó
 - Matthias Straka
 - Matthias Urlichs
+- Maxime LEURENT
 - Michel F
 - Mickaël Schoentgen
 - Pavel Kostromitinov
@@ -84,14 +97,16 @@ Thanks to
 - Sefa Keleş
 - Steffen Beyer
 - sumguytho
+- Szewcson
 - Thijs W
 - Totally a booplicate
+- ul-gh
 - WouterTuinstra
 - wriswith
 - Yash Jani
 - Yohrog
 - yyokusa
-
+- zaid bin saeed
 
 Pymodbus version 2 family
 -------------------------

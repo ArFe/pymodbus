@@ -3,10 +3,12 @@
 import struct
 from typing import cast
 
-from pymodbus.constants import ModbusStatus
-from pymodbus.datastore import ModbusSlaveContext
-from pymodbus.pdu.pdu import ModbusPDU
-from pymodbus.utilities import pack_bitstring, unpack_bitstring
+from ..constants import ExcCodes, ModbusStatus
+from ..datastore import ModbusServerContext
+from .decoders import DecodePDU
+from .exceptionresponse import ExceptionResponse
+from .pdu import ModbusPDU
+from .utils import pack_bitstring, unpack_bitstring
 
 
 class ReadCoilsRequest(ModbusPDU):
@@ -23,7 +25,7 @@ class ReadCoilsRequest(ModbusPDU):
 
     def decode(self, data: bytes) -> None:
         """Decode a request pdu."""
-        self.address, self.count = struct.unpack(">HH", data)
+        self.address, self.count = struct.unpack(">HH", data[:4])
 
     def get_response_pdu_size(self) -> int:
         """Get response pdu size.
@@ -33,11 +35,13 @@ class ReadCoilsRequest(ModbusPDU):
         """
         return 1 + 1 + (self.count + 7) // 8
 
-    async def update_datastore(self, context: ModbusSlaveContext) -> ModbusPDU:
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
         """Run request against a datastore."""
         values = await context.async_getValues(
-            self.function_code, self.address, self.count
+            device_id, self.function_code, self.address, self.count
         )
+        if isinstance(values, ExcCodes):
+            return ExceptionResponse(self.function_code, values)
         response_class = (ReadCoilsResponse if self.function_code == 1 else ReadDiscreteInputsResponse)
         return response_class(dev_id=self.dev_id, transaction_id=self.transaction_id, bits=cast(list[bool], values))
 
@@ -84,18 +88,21 @@ class WriteSingleCoilResponse(ModbusPDU):
 
     def decode(self, data: bytes) -> None:
         """Decode a write coil request."""
-        self.address, value = struct.unpack(">HH", data)
+        self.address, value = struct.unpack(">HH", data[:4])
         self.bits = [bool(value)]
 
 
 class WriteSingleCoilRequest(WriteSingleCoilResponse):
     """WriteSingleCoilRequest."""
 
-    async def update_datastore(self, context: ModbusSlaveContext) -> ModbusPDU:
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
         """Run a request against a datastore."""
-        await context.async_setValues(self.function_code, self.address, self.bits)
-        values = cast(list[bool], await context.async_getValues(self.function_code, self.address, 1))
-        return WriteSingleCoilResponse(address=self.address, bits=values, dev_id=self.dev_id, transaction_id=self.transaction_id)
+        if (rc := await context.async_setValues(device_id, self.function_code, self.address, self.bits)):
+            return ExceptionResponse(self.function_code, rc)
+        values = await context.async_getValues(device_id, self.function_code, self.address, 1)
+        if isinstance(values, ExcCodes):
+            return ExceptionResponse(self.function_code, values)
+        return WriteSingleCoilResponse(address=self.address, bits=cast(list[bool], values), dev_id=self.dev_id, transaction_id=self.transaction_id)
 
     def get_response_pdu_size(self) -> int:
         """Get response pdu size.
@@ -124,12 +131,15 @@ class WriteMultipleCoilsRequest(ModbusPDU):
         self.address, count, _byte_count = struct.unpack(">HHB", data[0:5])
         self.bits = unpack_bitstring(data[5:])[:count]
 
-    async def update_datastore(self, context: ModbusSlaveContext) -> ModbusPDU:
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
         """Run a request against a datastore."""
         count = len(self.bits)
-        await context.async_setValues(
-            self.function_code, self.address, self.bits
+        rc = await context.async_setValues(
+            device_id, self.function_code, self.address, self.bits
         )
+        if rc:
+            return ExceptionResponse(self.function_code, rc)
+
         return WriteMultipleCoilsResponse(address=self.address, count=count, dev_id=self.dev_id, transaction_id=self.transaction_id)
 
     def get_response_pdu_size(self) -> int:
@@ -153,4 +163,9 @@ class WriteMultipleCoilsResponse(ModbusPDU):
 
     def decode(self, data: bytes) -> None:
         """Decode a write coils response."""
-        self.address, self.count = struct.unpack(">HH", data)
+        self.address, self.count = struct.unpack(">HH", data[:4])
+
+DecodePDU.add_pdu(ReadCoilsRequest, ReadCoilsResponse)
+DecodePDU.add_pdu(ReadDiscreteInputsRequest, ReadDiscreteInputsResponse)
+DecodePDU.add_pdu(WriteSingleCoilRequest, WriteSingleCoilResponse)
+DecodePDU.add_pdu(WriteMultipleCoilsRequest, WriteMultipleCoilsResponse)

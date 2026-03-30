@@ -7,12 +7,12 @@ import time
 from collections.abc import Callable
 from ssl import SSLWantReadError
 
-from pymodbus.client.base import ModbusBaseClient, ModbusBaseSyncClient
-from pymodbus.exceptions import ConnectionException
-from pymodbus.framer import FramerType
-from pymodbus.logging import Log
-from pymodbus.pdu import ModbusPDU
-from pymodbus.transport import CommParams, CommType
+from ..exceptions import ConnectionException
+from ..framer import FramerType
+from ..logging import Log
+from ..pdu import ModbusPDU
+from ..transport import CommParams, CommType
+from .base import ModbusBaseClient, ModbusBaseSyncClient
 
 
 class AsyncModbusTcpClient(ModbusBaseClient):
@@ -28,9 +28,9 @@ class AsyncModbusTcpClient(ModbusBaseClient):
     :param port: Port used for communication
     :param name: Set communication name, used in logging
     :param source_address: source address of client
-    :param reconnect_delay: Minimum delay in seconds.milliseconds before reconnecting.
-    :param reconnect_delay_max: Maximum delay in seconds.milliseconds before reconnecting.
-    :param timeout: Timeout for connecting and receiving data, in seconds.
+    :param reconnect_delay: Minimum delay when reconnecting, in seconds (use decimals for milliseconds).
+    :param reconnect_delay_max: Maximum delay when reconnecting, in seconds (use decimals for milliseconds).
+    :param timeout: Timeout for connecting and receiving data, in seconds (use decimals for milliseconds).
     :param retries: Max number of retries per request.
     :param trace_packet: Called with bytestream received/to be sent
     :param trace_pdu: Called with PDU received/to be sent
@@ -259,7 +259,7 @@ class ModbusTcpClient(ModbusBaseSyncClient):
                         return self._handle_abrupt_socket_close(
                             size, data, time.time() - time_
                         )
-                except SSLWantReadError:
+                except SSLWantReadError:  # pragma: no cover
                     continue
                 data.append(recv_data)
                 data_length += len(recv_data)
@@ -270,13 +270,11 @@ class ModbusTcpClient(ModbusBaseSyncClient):
                 break
             # Timeout is reduced also if some data has been received in order
             # to avoid infinite loops when there isn't an expected response
-            # size and the slave sends noisy data continuously.
+            # size and the device sends noisy data continuously.
             if time_ > end:
                 break
 
             recv_size = size - data_length
-
-        self.last_frame_end = round(time.time(), 6)
         return b"".join(data)
 
     def _handle_abrupt_socket_close(self, size: int | None, data: list[bytes], duration: float) -> bytes:
@@ -306,7 +304,7 @@ class ModbusTcpClient(ModbusBaseSyncClient):
             result = b"".join(data)
             Log.warning(" after returning {} bytes: {} ", len(result), result)
             return result
-        msg += " without response from slave before it closed connection"
+        msg += " without response from device before it closed connection"
         raise ConnectionException(msg)
 
     def is_socket_open(self) -> bool:

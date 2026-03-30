@@ -16,11 +16,9 @@ __all__ = [
 import struct
 
 # pylint: disable=missing-type-doc
-from collections import OrderedDict
-
-from pymodbus.constants import INTERNAL_ERROR, DeviceInformation
-from pymodbus.events import ModbusEvent
-from pymodbus.utilities import dict_property
+from ..constants import DeviceInformation
+from ..utilities import dict_property
+from .events import ModbusEvent
 
 
 # ---------------------------------------------------------------------------#
@@ -33,59 +31,57 @@ class ModbusPlusStatistics:
     For more information, see the modbus implementation guide page 87.
     """
 
-    __data = OrderedDict(
-        {
-            "node_type_id": [0x00] * 2,  # 00
-            "software_version_number": [0x00] * 2,  # 01
-            "network_address": [0x00] * 2,  # 02
-            "mac_state_variable": [0x00] * 2,  # 03
-            "peer_status_code": [0x00] * 2,  # 04
-            "token_pass_counter": [0x00] * 2,  # 05
-            "token_rotation_time": [0x00] * 2,  # 06
-            "program_master_token_failed": [0x00],  # 07 hi
-            "data_master_token_failed": [0x00],  # 07 lo
-            "program_master_token_owner": [0x00],  # 08 hi
-            "data_master_token_owner": [0x00],  # 08 lo
-            "program_slave_token_owner": [0x00],  # 09 hi
-            "data_slave_token_owner": [0x00],  # 09 lo
-            "data_slave_command_transfer": [0x00],  # 10 hi
-            "__unused_10_lowbit": [0x00],  # 10 lo
-            "program_slave_command_transfer": [0x00],  # 11 hi
-            "program_master_rsp_transfer": [0x00],  # 11 lo
-            "program_slave_auto_logout": [0x00],  # 12 hi
-            "program_master_connect_status": [0x00],  # 12 lo
-            "receive_buffer_dma_overrun": [0x00],  # 13 hi
-            "pretransmit_deferral_error": [0x00],  # 13 lo
-            "frame_size_error": [0x00],  # 14 hi
-            "repeated_command_received": [0x00],  # 14 lo
-            "receiver_alignment_error": [0x00],  # 15 hi
-            "receiver_collision_abort_error": [0x00],  # 15 lo
-            "bad_packet_length_error": [0x00],  # 16 hi
-            "receiver_crc_error": [0x00],  # 16 lo
-            "transmit_buffer_dma_underrun": [0x00],  # 17 hi
-            "bad_link_address_error": [0x00],  # 17 lo
-            "bad_mac_function_code_error": [0x00],  # 18 hi
-            "internal_packet_length_error": [0x00],  # 18 lo
-            "communication_failed_error": [0x00],  # 19 hi
-            "communication_retries": [0x00],  # 19 lo
-            "no_response_error": [0x00],  # 20 hi
-            "good_receive_packet": [0x00],  # 20 lo
-            "unexpected_path_error": [0x00],  # 21 hi
-            "exception_response_error": [0x00],  # 21 lo
-            "forgotten_transaction_error": [0x00],  # 22 hi
-            "unexpected_response_error": [0x00],  # 22 lo
-            "active_station_bit_map": [0x00] * 8,  # 23-26
-            "token_station_bit_map": [0x00] * 8,  # 27-30
-            "global_data_bit_map": [0x00] * 8,  # 31-34
-            "receive_buffer_use_bit_map": [0x00] * 8,  # 35-37
-            "data_master_output_path": [0x00] * 8,  # 38-41
-            "data_slave_input_path": [0x00] * 8,  # 42-45
-            "program_master_outptu_path": [0x00] * 8,  # 46-49
-            "program_slave_input_path": [0x00] * 8,  # 50-53
-        }
-    )
+    stat_data: dict[str, list[int]] = {
+        "node_type_id": [0x00] * 2,  # 00
+        "software_version_number": [0x00] * 2,  # 01
+        "network_address": [0x00] * 2,  # 02
+        "mac_state_variable": [0x00] * 2,  # 03
+        "peer_status_code": [0x00] * 2,  # 04
+        "token_pass_counter": [0x00] * 2,  # 05
+        "token_rotation_time": [0x00] * 2,  # 06
+        "program_master_token_failed": [0x00],  # 07 hi
+        "data_master_token_failed": [0x00],  # 07 lo
+        "program_master_token_owner": [0x00],  # 08 hi
+        "data_master_token_owner": [0x00],  # 08 lo
+        "program_id_token_owner": [0x00],  # 09 hi
+        "data_id_token_owner": [0x00],  # 09 lo
+        "data_id_command_transfer": [0x00],  # 10 hi
+        "__unused_10_lowbit": [0x00],  # 10 lo
+        "program_id_command_transfer": [0x00],  # 11 hi
+        "program_master_rsp_transfer": [0x00],  # 11 lo
+        "program_id_auto_logout": [0x00],  # 12 hi
+        "program_master_connect_status": [0x00],  # 12 lo
+        "receive_buffer_dma_overrun": [0x00],  # 13 hi
+        "pretransmit_deferral_error": [0x00],  # 13 lo
+        "frame_size_error": [0x00],  # 14 hi
+        "repeated_command_received": [0x00],  # 14 lo
+        "receiver_alignment_error": [0x00],  # 15 hi
+        "receiver_collision_abort_error": [0x00],  # 15 lo
+        "bad_packet_length_error": [0x00],  # 16 hi
+        "receiver_crc_error": [0x00],  # 16 lo
+        "transmit_buffer_dma_underrun": [0x00],  # 17 hi
+        "bad_link_address_error": [0x00],  # 17 lo
+        "bad_mac_function_code_error": [0x00],  # 18 hi
+        "internal_packet_length_error": [0x00],  # 18 lo
+        "communication_failed_error": [0x00],  # 19 hi
+        "communication_retries": [0x00],  # 19 lo
+        "no_response_error": [0x00],  # 20 hi
+        "good_receive_packet": [0x00],  # 20 lo
+        "unexpected_path_error": [0x00],  # 21 hi
+        "exception_response_error": [0x00],  # 21 lo
+        "forgotten_transaction_error": [0x00],  # 22 hi
+        "unexpected_response_error": [0x00],  # 22 lo
+        "active_station_bit_map": [0x00] * 8,  # 23-26
+        "token_station_bit_map": [0x00] * 8,  # 27-30
+        "global_data_bit_map": [0x00] * 8,  # 31-34
+        "receive_buffer_use_bit_map": [0x00] * 8,  # 35-37
+        "data_master_output_path": [0x00] * 8,  # 38-41
+        "data_id_input_path": [0x00] * 8,  # 42-45
+        "program_master_outptu_path": [0x00] * 8,  # 46-49
+        "program_id_input_path": [0x00] * 8,  # 50-53
+    }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the modbus plus statistics with the default information."""
         self.reset()
 
@@ -94,28 +90,28 @@ class ModbusPlusStatistics:
 
         :returns: An iterator of the modbus plus statistics
         """
-        return iter(self.__data.items())
+        return iter(self.stat_data.items())
 
-    def reset(self):
+    def reset(self) -> None:
         """Clear all of the modbus plus statistics."""
-        for key in self.__data:
-            self.__data[key] = [0x00] * len(self.__data[key])
+        for key in self.stat_data:
+            self.stat_data[key] = [0x00] * len(self.stat_data[key])
 
     def summary(self):
         """Return a summary of the modbus plus statistics.
 
         :returns: 54 16-bit words representing the status
         """
-        return iter(self.__data.values())
+        return iter(self.stat_data.values())
 
-    def encode(self):
+    def encode(self) -> list[int]:
         """Return a summary of the modbus plus statistics.
 
-        :returns: 54 16-bit words representing the status
+        :returns: An iterator over lists of 8-bit integers representing each statistic
         """
-        total, values = [], sum(self.__data.values(), [])  # noqa: RUF017
-        for i in range(0, len(values), 2):
-            total.append((values[i] << 8) | values[i + 1])
+        values = [v for sublist in self.stat_data.values() for v in sublist]
+        total = [(values[i] << 8) | values[i + 1]
+                 for i in range(0, len(values), 2)]
         return total
 
 
@@ -131,7 +127,7 @@ class ModbusDeviceIdentification:
     application protocol.
     """
 
-    __data = {
+    stat_data = {
         0x00: "",  # VendorName
         0x01: "",  # ProductCode
         0x02: "",  # MajorMinorRevision
@@ -141,7 +137,7 @@ class ModbusDeviceIdentification:
         0x06: "",  # UserApplicationName
         0x07: "",  # reserved
         0x08: "",  # reserved
-        # 0x80 -> 0xFF are privatek
+        # 0x80 -> 0xFF are private
     }
 
     __names = [
@@ -159,32 +155,32 @@ class ModbusDeviceIdentification:
 
         (note acceptable range is [0x00-0x06,0x80-0xFF] inclusive)
 
-        :param info: A dictionary of {int:string} of values
-        :param set: A dictionary of {name:string} of values
+        :param info: Device information as {int:string} dictionary
+        :param info_name: Device information as {name:string} dictionary
         """
         if isinstance(info_name, dict):
             for key in info_name:
                 inx = self.__names.index(key)
-                self.__data[inx] = info_name[key]
+                self.stat_data[inx] = info_name[key]
 
         if isinstance(info, dict):
             for key in info:
                 if (0x06 >= key >= 0x00) or (0xFF >= key >= 0x80):
-                    self.__data[key] = info[key]
+                    self.stat_data[key] = info[key]
 
     def __iter__(self):
         """Iterate over the device information.
 
         :returns: An iterator of the device information
         """
-        return iter(self.__data.items())
+        return iter(self.stat_data.items())
 
     def summary(self):
         """Return a summary of the main items.
 
         :returns: An dictionary of the main items
         """
-        return dict(zip(self.__names, iter(self.__data.values())))
+        return dict(zip(self.__names, iter(self.stat_data.values())))
 
     def update(self, value):
         """Update the values of this identity.
@@ -193,7 +189,7 @@ class ModbusDeviceIdentification:
 
         :param value: The value to copy values from
         """
-        self.__data.update(value)
+        self.stat_data.update(value)
 
     def __setitem__(self, key, value):
         """Access the device information.
@@ -202,14 +198,14 @@ class ModbusDeviceIdentification:
         :param value: The new value for referenced register
         """
         if key not in [0x07, 0x08]:
-            self.__data[key] = value
+            self.stat_data[key] = value
 
     def __getitem__(self, key):
         """Access the device information.
 
         :param key: The register to read
         """
-        return self.__data.setdefault(key, "")
+        return self.stat_data.setdefault(key, "")
 
     def __str__(self):
         """Build a representation of the device.
@@ -222,13 +218,13 @@ class ModbusDeviceIdentification:
     #  Properties
     # -------------------------------------------------------------------------#
     # fmt: off
-    VendorName = dict_property(lambda s: s.__data, 0)  # pylint: disable=protected-access
-    ProductCode = dict_property(lambda s: s.__data, 1)  # pylint: disable=protected-access
-    MajorMinorRevision = dict_property(lambda s: s.__data, 2)  # pylint: disable=protected-access
-    VendorUrl = dict_property(lambda s: s.__data, 3)  # pylint: disable=protected-access
-    ProductName = dict_property(lambda s: s.__data, 4)  # pylint: disable=protected-access
-    ModelName = dict_property(lambda s: s.__data, 5)  # pylint: disable=protected-access
-    UserApplicationName = dict_property(lambda s: s.__data, 6)  # pylint: disable=protected-access
+    VendorName = dict_property(lambda s: s.stat_data, 0)
+    ProductCode = dict_property(lambda s: s.stat_data, 1)
+    MajorMinorRevision = dict_property(lambda s: s.stat_data, 2)
+    VendorUrl = dict_property(lambda s: s.stat_data, 3)
+    ProductName = dict_property(lambda s: s.stat_data, 4)
+    ModelName = dict_property(lambda s: s.stat_data, 5)
+    UserApplicationName = dict_property(lambda s: s.stat_data, 6)
     # fmt: on
 
 
@@ -293,10 +289,6 @@ class DeviceInformationFactory:  # pylint: disable=too-few-public-methods
         """
         return {oid: identity[oid] for oid in object_ids if identity[oid]}
 
-    def __init__(self):
-        """Prohibit objects."""
-        raise RuntimeError(INTERNAL_ERROR)
-
 
 # ---------------------------------------------------------------------------#
 #  Counters Handler
@@ -320,27 +312,27 @@ class ModbusCountersHandler:
              not able to calculate the CRC. In such cases, this counter is
              also incremented.
 
-    0x0D  3  Return Slave Exception Error Count
+    0x0D  3  Return device Exception Error Count
 
              Quantity of MODBUS exception error detected by the remote device
              since its last restart, clear counters operation, or power-up.
              Exception errors are described and listed in "MODBUS Application
              Protocol Specification" document.
 
-    0xOE  4  Return Slave Message Count
+    0xOE  4  Return device Message Count
 
              Quantity of messages addressed to the remote device that the remote
              device has processed since its last restart, clear counters operation,
              or power-up.
 
-    0x0F  5  Return Slave No Response Count
+    0x0F  5  Return device No Response Count
 
              Quantity of messages received by the remote device for which it
              returned no response (neither a normal response nor an exception
              response), since its last restart, clear counters operation, or
              power-up.
 
-    0x10  6  Return Slave NAK Count
+    0x10  6  Return device NAK Count
 
              Quantity of messages addressed to the remote device for which it
              returned a Negative ACKNOWLEDGE (NAK) exception response, since
@@ -348,10 +340,10 @@ class ModbusCountersHandler:
              responses are described and listed in "MODBUS Application Protocol
              Specification" document.
 
-    0x11  7  Return Slave Busy Count
+    0x11  7  Return device Busy Count
 
              Quantity of messages addressed to the remote device for which it
-             returned a Slave Device Busy exception response, since its last
+             returned a device Device Busy exception response, since its last
              restart, clear counters operation, or power-up. Exception
              responses are described and listed in "MODBUS Application
              Protocol Specification" document.
@@ -367,15 +359,15 @@ class ModbusCountersHandler:
     .. note:: I threw the event counter in here for convenience
     """
 
-    __data = {i: 0x0000 for i in range(9)}
+    stat_data = dict.fromkeys(range(9), 0x00)
     __names = [
         "BusMessage",
         "BusCommunicationError",
-        "SlaveExceptionError",
-        "SlaveMessage",
-        "SlaveNoResponse",
-        "SlaveNAK",
-        "SLAVE_BUSY",
+        "DeviceExceptionError",
+        "DeviceMessage",
+        "DeviceNoResponse",
+        "DeviceeNAK",
+        "DEVICE_BUSY",
         "BusCharacterOverrun",
     ]
 
@@ -384,7 +376,7 @@ class ModbusCountersHandler:
 
         :returns: An iterator of the device counters
         """
-        return zip(self.__names, iter(self.__data.values()))
+        return zip(self.__names, iter(self.stat_data.values()))
 
     def update(self, values):
         """Update the values of this identity.
@@ -401,7 +393,7 @@ class ModbusCountersHandler:
 
     def reset(self):
         """Clear all of the system counters."""
-        self.__data = {i: 0x0000 for i in range(9)}
+        self.stat_data = dict.fromkeys(range(9), 0x00)
 
     def summary(self):
         """Return a summary of the counters current status.
@@ -409,7 +401,7 @@ class ModbusCountersHandler:
         :returns: A byte with each bit representing each counter
         """
         count, result = 0x01, 0x00
-        for i in iter(self.__data.values()):
+        for i in iter(self.stat_data.values()):
             if i != 0x00:  # pylint: disable=compare-to-zero
                 result |= count
             count <<= 1
@@ -419,15 +411,15 @@ class ModbusCountersHandler:
     #  Properties
     # -------------------------------------------------------------------------#
     # fmt: off
-    BusMessage = dict_property(lambda s: s.__data, 0)  # pylint: disable=protected-access
-    BusCommunicationError = dict_property(lambda s: s.__data, 1)  # pylint: disable=protected-access
-    BusExceptionError = dict_property(lambda s: s.__data, 2)  # pylint: disable=protected-access
-    SlaveMessage = dict_property(lambda s: s.__data, 3)  # pylint: disable=protected-access
-    SlaveNoResponse = dict_property(lambda s: s.__data, 4)  # pylint: disable=protected-access
-    SlaveNAK = dict_property(lambda s: s.__data, 5)  # pylint: disable=protected-access
-    SLAVE_BUSY = dict_property(lambda s: s.__data, 6)  # pylint: disable=protected-access
-    BusCharacterOverrun = dict_property(lambda s: s.__data, 7)  # pylint: disable=protected-access
-    Event = dict_property(lambda s: s.__data, 8)  # pylint: disable=protected-access
+    BusMessage = dict_property(lambda s: s.stat_data, 0)
+    BusCommunicationError = dict_property(lambda s: s.stat_data, 1)
+    BusExceptionError = dict_property(lambda s: s.stat_data, 2)
+    DeviceMessage = dict_property(lambda s: s.stat_data, 3)
+    DeviceNoResponse = dict_property(lambda s: s.stat_data, 4)
+    DeviceNAK = dict_property(lambda s: s.stat_data, 5)
+    DEVICE_BUSY = dict_property(lambda s: s.stat_data, 6)
+    BusCharacterOverrun = dict_property(lambda s: s.stat_data, 7)
+    Event = dict_property(lambda s: s.stat_data, 8)
     # fmt: on
 
 
@@ -450,6 +442,8 @@ class ModbusControlBlock:
     _plus = ModbusPlusStatistics()
     _events: list[ModbusEvent] = []
 
+    _inst: ModbusControlBlock | None = None
+
     # -------------------------------------------------------------------------#
     #  Magic
     # -------------------------------------------------------------------------#
@@ -469,7 +463,7 @@ class ModbusControlBlock:
 
     def __new__(cls):
         """Create a new instance."""
-        if "_inst" not in vars(cls):
+        if cls._inst is None:
             cls._inst = object.__new__(cls)
         return cls._inst
 
@@ -562,8 +556,7 @@ class ModbusControlBlock:
         :param mapping: Dictionary of key:value pairs to set
         """
         for entry in iter(mapping.items()):
-            if entry[0] >= 0 and entry[0] < len(self._diagnostic):
-                self._diagnostic[entry[0]] = bool(entry[1])
+            self._diagnostic[entry[0]] = bool(entry[1])
 
     def getDiagnostic(self, bit):
         """Get the value in the diagnostic register.

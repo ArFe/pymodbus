@@ -13,16 +13,16 @@ from pymodbus.transport import CommParams, CommType, ModbusProtocol
 class DummyProtocol(ModbusProtocol):
     """Implement use of ModbusProtocol."""
 
-    def __init__(self, params=CommParams(), is_server=False):
+    def __init__(self, params=CommParams(), is_server=False, is_sync=False):
         """Initialize."""
-        super().__init__(params, is_server)
+        super().__init__(params, is_server, is_sync)
 
     def callback_new_connection(self) -> ModbusProtocol:
         """Call when listener receive new connection request."""
         return DummyProtocol(params=self.comm_params, is_server=False)
 
     def callback_connected(self) -> None:
-        """Call when connection is succcesfull."""
+        """Call when connection is successful."""
 
     def callback_disconnected(self, exc: Exception | None) -> None:
         """Call when connection is lost."""
@@ -35,7 +35,7 @@ class DummyProtocol(ModbusProtocol):
 
 
 @pytest.fixture(name="dummy_protocol")
-async def prepare_dummy_protocol():
+def prepare_dummy_protocol():
     """Return transport object."""
     return DummyProtocol
 
@@ -44,14 +44,14 @@ async def prepare_dummy_protocol():
 async def prepare_protocol(use_clc):
     """Prepare transport object."""
     if use_clc.comm_type == CommType.TLS:
-        cwd = os.path.dirname(__file__) + "/../../examples/certificates/pymodbus."
+        cwd = os.path.dirname(__file__) + "/../../examples/certificates/pymodbus_tls."
         use_clc.sslctx = use_clc.generate_ssl(
             False, certfile=cwd + "crt", keyfile=cwd + "key"
         )
     transport = DummyProtocol(params=use_clc, is_server=False)
-    transport.callback_connected = mock.Mock()
-    transport.callback_disconnected = mock.Mock()
-    transport.callback_data = mock.Mock(return_value=0)
+    transport.callback_connected = mock.Mock()  # type: ignore[method-assign]
+    transport.callback_disconnected = mock.Mock()  # type: ignore[method-assign]
+    transport.callback_data = mock.Mock(return_value=0)  # type: ignore[method-assign]
     if use_clc.comm_type == CommType.SERIAL:
         transport.comm_params.host = f"socket://localhost:{transport.comm_params.port}"
     return transport
@@ -61,12 +61,12 @@ async def prepare_protocol(use_clc):
 async def prepare_transport_server(use_cls):
     """Prepare transport object."""
     if use_cls.comm_type == CommType.TLS:
-        cwd = os.path.dirname(__file__) + "/../../examples/certificates/pymodbus."
+        cwd = os.path.dirname(__file__) + "/../../examples/certificates/pymodbus_tls."
         use_cls.sslctx = use_cls.generate_ssl(
             True, certfile=cwd + "crt", keyfile=cwd + "key"
         )
     transport = DummyProtocol(params=use_cls, is_server=True)
-    transport.callback_connected = mock.Mock()
-    transport.callback_disconnected = mock.Mock()
-    transport.callback_data = mock.Mock(return_value=0)
+    transport.callback_connected = mock.Mock()  # type: ignore[method-assign]
+    transport.callback_disconnected = mock.Mock()  # type: ignore[method-assign]
+    transport.callback_data = mock.Mock(return_value=0)  # type: ignore[method-assign]
     return transport

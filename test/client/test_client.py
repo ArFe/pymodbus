@@ -1,6 +1,7 @@
 """Test client sync."""
 import socket
 import ssl
+from typing import cast
 from unittest import mock
 
 import pytest
@@ -60,11 +61,11 @@ class TestMixin:
             ("diag_read_bus_message_count", 0, pdu_diag.ReturnBusMessageCountRequest),
             ("diag_read_bus_comm_error_count",0, pdu_diag.ReturnBusCommunicationErrorCountRequest),
             ("diag_read_bus_exception_error_count", 0, pdu_diag.ReturnBusExceptionErrorCountRequest),
-            ("diag_read_slave_message_count", 0, pdu_diag.ReturnSlaveMessageCountRequest),
-            ("diag_read_slave_no_response_count", 0, pdu_diag.ReturnSlaveNoResponseCountRequest),
-            ("diag_read_slave_nak_count", 0, pdu_diag.ReturnSlaveNAKCountRequest),
-            ("diag_read_slave_busy_count", 0, pdu_diag.ReturnSlaveBusyCountRequest),
-            ("diag_read_bus_char_overrun_count", 0, pdu_diag.ReturnSlaveBusCharacterOverrunCountRequest),
+            ("diag_read_device_message_count", 0, pdu_diag.ReturnDeviceMessageCountRequest),
+            ("diag_read_device_no_response_count", 0, pdu_diag.ReturnDeviceNoResponseCountRequest),
+            ("diag_read_device_nak_count", 0, pdu_diag.ReturnDeviceNAKCountRequest),
+            ("diag_read_device_busy_count", 0, pdu_diag.ReturnDeviceBusyCountRequest),
+            ("diag_read_bus_char_overrun_count", 0, pdu_diag.ReturnDeviceBusCharacterOverrunCountRequest),
             ("diag_read_iop_overrun_count", 0, pdu_diag.ReturnIopOverrunCountRequest),
             ("diag_clear_overrun_counter", 0, pdu_diag.ClearOverrunCountRequest),
             ("diag_getclear_modbus_response", 0, pdu_diag.GetClearModbusPlusRequest),
@@ -75,7 +76,7 @@ class TestMixin:
             ("readwrite_registers", 0, pdu_reg.ReadWriteMultipleRegistersRequest),
             ("readwrite_registers", 6, pdu_reg.ReadWriteMultipleRegistersRequest),
             ("mask_write_register", 1, pdu_reg.MaskWriteRegisterRequest),
-            ("report_slave_id", 0, pdu_other_msg.ReportSlaveIdRequest),
+            ("report_device_id", 0, pdu_other_msg.ReportDeviceIdRequest),
             ("read_file_record", 7, pdu_file_msg.ReadFileRecordRequest),
             ("write_file_record", 7, pdu_file_msg.WriteFileRecordRequest),
             ("read_fifo_queue", 1, pdu_file_msg.ReadFifoQueueRequest),
@@ -105,9 +106,22 @@ class TestMixin:
             (ModbusClientMixin.DATATYPE.STRING, "a", [0x6100], None),
             (ModbusClientMixin.DATATYPE.UINT16, 27123, [0x69F3], None),
             (ModbusClientMixin.DATATYPE.INT16, -27123, [0x960D], None),
+            (ModbusClientMixin.DATATYPE.INT16, [-27123, 27123], [0x960D, 0x69F3], None),
             (ModbusClientMixin.DATATYPE.UINT32, 27123, [0x0000, 0x69F3], None),
             (ModbusClientMixin.DATATYPE.UINT32, 32145678, [0x01EA, 0x810E], None),
+            (
+                ModbusClientMixin.DATATYPE.UINT32,
+                [27123, 32145678],
+                [0x0000, 0x69F3, 0x01EA, 0x810E],
+                None
+            ),
             (ModbusClientMixin.DATATYPE.INT32, -32145678, [0xFE15, 0x7EF2], None),
+            (
+                ModbusClientMixin.DATATYPE.INT32,
+                [32145678, -32145678],
+                [0x01EA, 0x810E, 0xFE15, 0x7EF2],
+                None
+            ),
             (
                 ModbusClientMixin.DATATYPE.UINT64,
                 1234567890123456789,
@@ -120,9 +134,21 @@ class TestMixin:
                 [0xEEDD, 0xEF0B, 0x8216, 0x7EEB],
                 None,
             ),
+            (
+                ModbusClientMixin.DATATYPE.INT64,
+                [1234567890123456789, -1234567890123456789],
+                [0x1122, 0x10F4, 0x7DE9, 0x8115, 0xEEDD, 0xEF0B, 0x8216, 0x7EEB],
+                None,
+            ),
             (ModbusClientMixin.DATATYPE.FLOAT32, 27123.5, [0x46D3, 0xE700], None),
             (ModbusClientMixin.DATATYPE.FLOAT32, 3.141592, [0x4049, 0x0FD8], None),
             (ModbusClientMixin.DATATYPE.FLOAT32, -3.141592, [0xC049, 0x0FD8], None),
+            (
+                ModbusClientMixin.DATATYPE.FLOAT32,
+                [27123.5, 3.141592, -3.141592],
+                [0x46D3, 0xE700, 0x4049, 0x0FD8, 0xC049, 0x0FD8],
+                None
+            ),
             (ModbusClientMixin.DATATYPE.FLOAT64, 27123.5, [0x40DA, 0x7CE0, 0x0000, 0x0000], None),
             (
                 ModbusClientMixin.DATATYPE.FLOAT64,
@@ -137,33 +163,63 @@ class TestMixin:
                 None,
             ),
             (
+                ModbusClientMixin.DATATYPE.FLOAT64,
+                [3.14159265358979, -3.14159265358979],
+                [0x4009, 0x21FB, 0x5444, 0x2D11, 0xC009, 0x21FB, 0x5444, 0x2D11],
+                None,
+            ),
+            (
                 ModbusClientMixin.DATATYPE.BITS,
                 [True],
-                [256],
+                [256],  # 0x01 0x00
                 None,
             ),
             (
                 ModbusClientMixin.DATATYPE.BITS,
-                [True, False, True],
-                [1280],
+                [True] + [False] * 15,
+                [256],  # 0x01 0x00
                 None,
             ),
             (
                 ModbusClientMixin.DATATYPE.BITS,
-                [True, False, True] + [False] * 5 + [True],
-                [1281],
+                [False] * 8 + [True] + [False] * 7,
+                [1],  # 0x00 0x01
                 None,
             ),
             (
                 ModbusClientMixin.DATATYPE.BITS,
-                [True, False, True] + [False] * 5 + [True] + [False] * 6 + [True],
-                [1409],
+                [False] * 15 + [True],
+                [128],  # 0x00 0x80
                 None,
             ),
             (
                 ModbusClientMixin.DATATYPE.BITS,
-                [True, False, True] + [False] * 5 + [True] + [False] * 6 + [True] * 2,
-                [1409, 256],
+                [True] + [False] * 14 + [True],
+                [384],  # 0x01 0x80
+                None,
+            ),
+            (
+                ModbusClientMixin.DATATYPE.BITS,
+                [False] * 8 + [True, False, True] + [False] * 5,
+                [5],  # 0x00 0x05
+                None,
+            ),
+            (
+                ModbusClientMixin.DATATYPE.BITS,
+                [True] + [False] * 7 + [True, False, True] + [False] * 5,
+                [261],  # 0x01 0x05
+                None,
+            ),
+            (
+                ModbusClientMixin.DATATYPE.BITS,
+                [True] + [False] * 6 + [True, True, False, True] + [False] * 5,
+                [33029], # 0x81 0x05
+                None,
+            ),
+            (
+                ModbusClientMixin.DATATYPE.BITS,
+                [False] * 8 + [True] + [False] * 7 + [True] + [False] * 6 + [True, True, False, True] + [False] * 5,
+                [1, 33029],  # 92340480 = 0x00 0x01 0x81 0x05
                 None,
             ),
         ],
@@ -171,7 +227,16 @@ class TestMixin:
     def test_client_mixin_convert(self, datatype, word_order, registers, value, string_encoding):
         """Test converter methods."""
         if word_order == "little":
-            registers = list(reversed(registers))
+            if not (datatype_len := datatype.value[1]):
+                registers = list(reversed(registers))
+            else:
+                reversed_regs: list[int] = []
+                for x in range(0, len(registers), datatype_len):
+                    single_value_regs = registers[x: x + datatype_len]
+                    single_value_regs.reverse()
+                    reversed_regs = reversed_regs + single_value_regs
+                registers = reversed_regs
+
 
         kwargs = {**({"word_order": word_order} if word_order else {}),
                   **({"string_encoding": string_encoding} if string_encoding else {})}
@@ -179,11 +244,14 @@ class TestMixin:
         regs = ModbusClientMixin.convert_to_registers(value, datatype, **kwargs)
         assert regs == registers
         result = ModbusClientMixin.convert_from_registers(registers, datatype, **kwargs)
-        if datatype == ModbusClientMixin.DATATYPE.FLOAT32:
-            result = round(result, 6)
         if datatype == ModbusClientMixin.DATATYPE.BITS:
             if (missing := len(value) % 16):
                 value = value + [False] * (16 - missing)
+        if datatype == ModbusClientMixin.DATATYPE.FLOAT32:
+            if isinstance(result, list):
+                result = [round(v, 6) for v in result]
+            else:
+                result = round(cast(float, result), 6)
         assert result == value
 
     @pytest.mark.parametrize(
@@ -216,7 +284,7 @@ class TestMixin:
         regs = ModbusClientMixin.convert_to_registers(value, datatype)
         result = ModbusClientMixin.convert_from_registers(regs, datatype)
         if datatype == ModbusClientMixin.DATATYPE.FLOAT32 or datatype == ModbusClientMixin.DATATYPE.FLOAT64:
-            result = round(result, 6)
+            result = round(cast(float, result), 6)
         assert result == value
         assert regs == registers
 
@@ -229,7 +297,21 @@ class TestMixin:
             ModbusClientMixin.convert_from_registers([123], ModbusClientMixin.DATATYPE.FLOAT64)
 
         with pytest.raises(TypeError):
-            ModbusClientMixin.convert_to_registers(bool, ModbusClientMixin.DATATYPE.BITS)
+            ModbusClientMixin.convert_to_registers(bool, ModbusClientMixin.DATATYPE.BITS)  # type: ignore[arg-type]
+
+    def test_client_mixin_convert_datatype_fail(self):
+        """Test convert fail."""
+        with pytest.raises(TypeError):
+            ModbusClientMixin.convert_to_registers(123, ("s", 0))  # type: ignore[arg-type]
+
+        with pytest.raises(TypeError):
+            ModbusClientMixin.convert_from_registers([123], ("d", 4))  # type: ignore[arg-type]
+
+    def test_client_mixin_execute(self):
+        """Test mixin execute."""
+        a = ModbusClientMixin()
+        a.execute(False, cast(ModbusPDU, None))
+
 
 
 class TestClientBase:
@@ -348,11 +430,6 @@ class TestClientBase:
                 **arg_list["fix"]["opt_args"],
                 **cur_args["opt_args"],
             )
-
-        # Test information methods
-        client.last_frame_end = 2
-        client.silent_interval = 2
-        client.last_frame_end = None
 
         # a successful execute
         client.transaction = mock.Mock(**{"execute.return_value": True})
@@ -548,7 +625,7 @@ class TestClientBase:
     def test_tcp_client_register(self):
         """Test tcp client."""
 
-        class CustomRequest:  # pylint: disable=too-few-public-methods
+        class CustomRequest(ModbusPDU):  # pylint: disable=too-few-public-methods
             """Dummy custom request."""
 
             function_code = 79
@@ -558,27 +635,20 @@ class TestClientBase:
         client.register(CustomRequest)
         client.framer.decoder.register.assert_called_once_with(CustomRequest)
 
-    def test_idle_time(self):
-        """Test idle_time()."""
-        client = lib_client.ModbusTcpClient("127.0.0.1")
-        assert not client.idle_time()
-        client.last_frame_end = None
-        assert not client.idle_time()
-
     def test_sync_block(self):
-        """Test idle_time()."""
+        """Test sync block."""
         with lib_client.ModbusTcpClient("127.0.0.1") as client:
             assert not client.connected
 
     def test_sync_execute(self):
-        """Test idle_time()."""
+        """Test sync execute."""
         client = lib_client.ModbusTcpClient("127.0.0.1")
-        client.connect = mock.Mock(return_value=False)
+        client.connect = mock.Mock(return_value=False)  # type: ignore[method-assign]
         with pytest.raises(ConnectionException):
-            client.execute(False, None)
+            client.execute(False, None)  # type: ignore[arg-type]
         client.transaction = mock.Mock()
         client.connect.return_value = True
-        client.execute(False, None)
+        client.execute(False, None)  # type: ignore[arg-type]
 
     @pytest.mark.parametrize(
         ("client_class"),

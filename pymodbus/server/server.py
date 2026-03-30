@@ -3,12 +3,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from pymodbus.datastore import ModbusServerContext
-from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.framer import FramerType
-from pymodbus.pdu import ModbusPDU
-from pymodbus.transport import CommParams, CommType
-
+from ..datastore import ModbusServerContext
+from ..framer import FramerType
+from ..pdu import ModbusPDU
+from ..pdu.device import ModbusDeviceIdentification
+from ..simulator import SimDevice
+from ..transport import CommParams, CommType
 from .base import ModbusBaseServer
 
 
@@ -21,12 +21,12 @@ class ModbusTcpServer(ModbusBaseServer):
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        context: ModbusServerContext,
+        context: ModbusServerContext | SimDevice | list[SimDevice],
         *,
         framer=FramerType.SOCKET,
         identity: ModbusDeviceIdentification | None = None,
         address: tuple[str, int] = ("", 502),
-        ignore_missing_slaves: bool = False,
+        ignore_missing_devices: bool = False,
         broadcast_enable: bool = False,
         trace_packet: Callable[[bool, bytes], bytes] | None = None,
         trace_pdu: Callable[[bool, ModbusPDU], ModbusPDU] | None = None,
@@ -42,8 +42,7 @@ class ModbusTcpServer(ModbusBaseServer):
         :param framer: The framer strategy to use
         :param identity: An optional identify structure
         :param address: An optional (interface, port) to bind to.
-        :param ignore_missing_slaves: True to not send errors on a request
-                        to a missing slave
+        :param ignore_missing_devices: True to not send errors on a missing device
         :param broadcast_enable: True to treat dev_id 0 as broadcast address,
                         False to treat 0 as any other dev_id
         :param trace_packet: Called with bytestream received/to be sent
@@ -66,7 +65,7 @@ class ModbusTcpServer(ModbusBaseServer):
         super().__init__(
             params,
             context,
-            ignore_missing_slaves,
+            ignore_missing_devices,
             broadcast_enable,
             identity,
             framer,
@@ -86,7 +85,7 @@ class ModbusTlsServer(ModbusTcpServer):
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        context: ModbusServerContext,
+        context: ModbusServerContext | SimDevice | list[SimDevice],
         *,
         framer=FramerType.TLS,
         identity: ModbusDeviceIdentification | None = None,
@@ -95,7 +94,7 @@ class ModbusTlsServer(ModbusTcpServer):
         certfile=None,
         keyfile=None,
         password=None,
-        ignore_missing_slaves=False,
+        ignore_missing_devices=False,
         broadcast_enable=False,
         trace_packet: Callable[[bool, bytes], bytes] | None = None,
         trace_pdu: Callable[[bool, ModbusPDU], ModbusPDU] | None = None,
@@ -116,8 +115,7 @@ class ModbusTlsServer(ModbusTcpServer):
         :param certfile: The cert file path for TLS (used if sslctx is None)
         :param keyfile: The key file path for TLS (used if sslctx is None)
         :param password: The password for for decrypting the private key file
-        :param ignore_missing_slaves: True to not send errors on a request
-                        to a missing slave
+        :param ignore_missing_devices: True to not send errors on a  missing device
         :param broadcast_enable: True to treat dev_id 0 as broadcast address,
                         False to treat 0 as any other dev_id
         :param trace_packet: Called with bytestream received/to be sent
@@ -140,7 +138,7 @@ class ModbusTlsServer(ModbusTcpServer):
             framer=framer,
             identity=identity,
             address=address,
-            ignore_missing_slaves=ignore_missing_slaves,
+            ignore_missing_devices=ignore_missing_devices,
             broadcast_enable=broadcast_enable,
             trace_packet=trace_packet,
             trace_pdu=trace_pdu,
@@ -158,12 +156,12 @@ class ModbusUdpServer(ModbusBaseServer):
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        context: ModbusServerContext,
+        context: ModbusServerContext | SimDevice | list[SimDevice],
         *,
         framer=FramerType.SOCKET,
         identity: ModbusDeviceIdentification | None = None,
         address: tuple[str, int] = ("", 502),
-        ignore_missing_slaves: bool = False,
+        ignore_missing_devices: bool = False,
         broadcast_enable: bool = False,
         trace_packet: Callable[[bool, bytes], bytes] | None = None,
         trace_pdu: Callable[[bool, ModbusPDU], ModbusPDU] | None = None,
@@ -179,8 +177,7 @@ class ModbusUdpServer(ModbusBaseServer):
         :param framer: The framer strategy to use
         :param identity: An optional identify structure
         :param address: An optional (interface, port) to bind to.
-        :param ignore_missing_slaves: True to not send errors on a request
-                            to a missing slave
+        :param ignore_missing_devices: True to not send errors on a  missing device
         :param broadcast_enable: True to treat dev_id 0 as broadcast address,
                             False to treat 0 as any other dev_id
         :param trace_packet: Called with bytestream received/to be sent
@@ -200,7 +197,7 @@ class ModbusUdpServer(ModbusBaseServer):
         super().__init__(
             params,
             context,
-            ignore_missing_slaves,
+            ignore_missing_devices,
             broadcast_enable,
             identity,
             framer,
@@ -220,10 +217,10 @@ class ModbusSerialServer(ModbusBaseServer):
 
     def __init__(
         self,
-        context: ModbusServerContext,
+        context: ModbusServerContext | SimDevice | list[SimDevice],
         *,
         framer: FramerType = FramerType.RTU,
-        ignore_missing_slaves: bool = False,
+        ignore_missing_devices: bool = False,
         identity: ModbusDeviceIdentification | None = None,
         broadcast_enable: bool = False,
         trace_packet: Callable[[bool, bytes], bytes] | None = None,
@@ -246,8 +243,7 @@ class ModbusSerialServer(ModbusBaseServer):
         :param baudrate: The baud rate to use for the serial device
         :param timeout: The timeout to use for the serial device
         :param handle_local_echo: (optional) Discard local echo from dongle.
-        :param ignore_missing_slaves: True to not send errors on a request
-                            to a missing slave
+        :param ignore_missing_devices: True to not send errors on a  missing device
         :param broadcast_enable: True to treat dev_id 0 as broadcast address,
                             False to treat 0 as any other dev_id
         :param reconnect_delay: reconnect delay in seconds
@@ -255,7 +251,10 @@ class ModbusSerialServer(ModbusBaseServer):
         :param trace_pdu: Called with PDU received/to be sent
         :param trace_connect: Called when connected/disconnected
         :param custom_pdu: list of ModbusPDU custom classes
+        :param allow_multiple_devices: True if the rs485 have multiple devices connected.
+                    **Remark** only works with baudrates <= 38.400 and with an error free RS485.
         """
+        baudrate = kwargs.get("baudrate", 19200)
         params = CommParams(
             comm_type=CommType.SERIAL,
             comm_name="server_listener",
@@ -265,14 +264,14 @@ class ModbusSerialServer(ModbusBaseServer):
             source_address=(kwargs.get("port", 0), 0),
             bytesize=kwargs.get("bytesize", 8),
             parity=kwargs.get("parity", "N"),
-            baudrate=kwargs.get("baudrate", 19200),
+            baudrate=baudrate,
             stopbits=kwargs.get("stopbits", 1),
-            handle_local_echo=kwargs.get("handle_local_echo", False)
+            handle_local_echo=kwargs.get("handle_local_echo", False),
         )
         super().__init__(
             params,
             context,
-            ignore_missing_slaves,
+            ignore_missing_devices,
             broadcast_enable,
             identity,
             framer,
@@ -281,4 +280,9 @@ class ModbusSerialServer(ModbusBaseServer):
             trace_connect,
             custom_pdu,
         )
-        self.handle_local_echo = kwargs.get("handle_local_echo", False)
+        self.allow_multiple_devices = kwargs.get("allow_multiple_devices", False)
+        if self.allow_multiple_devices:
+            if baudrate > 38400:
+                raise TypeError("allow_multiple_devices only allowed with baudrate <= 38.400")
+            if framer != FramerType.RTU:
+                raise TypeError("allow_multiple_devices only allowed with FramerType.RTU")

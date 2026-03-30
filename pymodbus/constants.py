@@ -3,13 +3,15 @@
 This is the single location for storing default
 values for the servers and clients.
 """
+from __future__ import annotations
+
 import enum
 
 
 INTERNAL_ERROR = "Pymodbus internal error"
 
 
-class ModbusStatus(int, enum.Enum):
+class ModbusStatus(enum.IntEnum):
     """These represent various status codes in the modbus protocol.
 
     .. attribute:: WAITING
@@ -29,50 +31,30 @@ class ModbusStatus(int, enum.Enum):
     .. attribute:: OFF
 
        This indicates that the given modbus entity is off
-
-    .. attribute:: SLAVE_ON
-
-       This indicates that the given modbus slave is running
-
-    .. attribute:: SLAVE_OFF
-
-       This indicates that the given modbus slave is not running
     """
 
     WAITING = 0xFFFF
     READY = 0x0000
     ON = 0xFF00
     OFF = 0x0000
-    SLAVE_ON = 0xFF
-    SLAVE_OFF = 0x00
 
 
-class Endian(str, enum.Enum):
-    """An enumeration representing the various byte endianness.
+class ExcCodes(enum.IntEnum):
+   """Represents the allowed exception codes."""
 
-    .. attribute:: AUTO
-
-       This indicates that the byte order is chosen by the
-       current native environment.
-
-    .. attribute:: BIG
-
-       This indicates that the bytes are in big endian format
-
-    .. attribute:: LITTLE
-
-       This indicates that the bytes are in little endian format
-
-    .. note:: I am simply borrowing the format strings from the
-       python struct module for my convenience.
-    """
-
-    AUTO = "@"
-    BIG = ">"
-    LITTLE = "<"
+   ILLEGAL_FUNCTION = 0x01
+   ILLEGAL_ADDRESS = 0x02
+   ILLEGAL_VALUE = 0x03
+   DEVICE_FAILURE = 0x04
+   ACKNOWLEDGE = 0x05
+   DEVICE_BUSY = 0x06
+   NEGATIVE_ACKNOWLEDGE = 0x07
+   MEMORY_PARITY_ERROR = 0x08
+   GATEWAY_PATH_UNAVIABLE = 0x0A
+   GATEWAY_NO_RESPONSE = 0x0B
 
 
-class ModbusPlusOperation(int, enum.Enum):
+class ModbusPlusOperation(enum.IntEnum):
     """Represents the type of modbus plus request.
 
     .. attribute:: GET_STATISTICS
@@ -90,7 +72,7 @@ class ModbusPlusOperation(int, enum.Enum):
     CLEAR_STATISTICS = 0x0004
 
 
-class DeviceInformation(int, enum.Enum):
+class DeviceInformation(enum.IntEnum):
     """Represents what type of device information to read.
 
     .. attribute:: BASIC
@@ -122,12 +104,8 @@ class DeviceInformation(int, enum.Enum):
     EXTENDED = 0x03
     SPECIFIC = 0x04
 
-    def __str__(self):
-        """Override to force int representation for enum members."""
-        return str(int(self))
 
-
-class MoreData(int, enum.Enum):
+class MoreData(enum.IntEnum):
     """Represents the more follows condition.
 
     .. attribute:: NOTHING

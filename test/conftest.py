@@ -4,11 +4,13 @@ import platform
 import sys
 from collections import deque
 from threading import enumerate as thread_enumerate
+from typing import cast
 
 import pytest
 import pytest_asyncio
 
-from pymodbus.datastore import ModbusBaseSlaveContext
+from pymodbus.constants import ExcCodes
+from pymodbus.datastore import ModbusDeviceContext, ModbusServerContext
 from pymodbus.server import ServerAsyncStop
 from pymodbus.transport import NULLMODEM_HOST, CommParams, CommType
 from pymodbus.transport.transport import NullModem
@@ -179,6 +181,8 @@ async def _check_system_health():
     start_tasks = {task.get_name(): task for task in asyncio.all_tasks()}
     yield
     await asyncio.sleep(0.1)
+    all_clean = True
+    error_text = ""
     for count in range(10):
         all_clean = True
         error_text = f"ERROR tasks/threads hanging after {count} retries:\n"
@@ -204,43 +208,48 @@ async def _check_system_health():
     assert all_clean, error_text
     assert not NullModem.is_dirty()
 
-
-@pytest.fixture(name="mock_context")
-def define_mock_context():
+@pytest.fixture(name="mock_server_context")
+def define_mock_servercontext() -> ModbusServerContext:
     """Define context class."""
-    class MockContext(ModbusBaseSlaveContext):
+    class MockServerContext(ModbusServerContext):
         """Mock context."""
 
         def __init__(self, valid=False, default=True):
             """Initialize."""
+            super().__init__(devices=ModbusDeviceContext())
             self.valid = valid
             self.default = default
 
-        def getValues(self, _fc, _address, count=0):
+        async def async_getValues(self, device_id, func_code, address, count=0):
             """Get values."""
+            _ = device_id, func_code, address
+            if count > 0x100:
+                return ExcCodes.ILLEGAL_VALUE
             return [self.default] * count
 
-        def setValues(self, _fc, _address, _values):
+        async def async_setValues(self, device_id, func_code, address, values):
             """Set values."""
 
-    return MockContext
+    return cast(ModbusServerContext, MockServerContext)
 
-
-class MockLastValuesContext(ModbusBaseSlaveContext):
+class MockLastValuesContext(ModbusServerContext):
     """Mock context."""
 
     def __init__(self, valid=False, default=True):
         """Initialize."""
+        super().__init__(devices=ModbusDeviceContext())
         self.valid = valid
         self.default = default
-        self.last_values = []
+        self.last_values: list = []
 
-    def getValues(self, _fc, _address, count=0):
+    async def async_getValues(self, device_id, func_code, address, count=0):
         """Get values."""
+        _ = device_id, func_code, address
         return [self.default] * count
 
-    def setValues(self, _fc, _address, values):
+    async def async_setValues(self, device_id, func_code, address, values):
         """Set values."""
+        _ = device_id, func_code, address
         self.last_values = values
 
 

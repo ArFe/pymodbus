@@ -1,8 +1,8 @@
 """Modbus RTU frame implementation."""
 from __future__ import annotations
 
-from pymodbus.framer.base import FramerBase
-from pymodbus.logging import Log
+from ..logging import Log
+from .base import FramerBase
 
 
 class FramerRTU(FramerBase):
@@ -19,66 +19,46 @@ class FramerRTU(FramerBase):
             neither when receiving nor when sending.
 
     Decoding is a complicated process because the RTU frame does not have a fixed prefix
-    only suffix, therefore it is necessary to decode the content (PDU) to get length etc.
+    only suffix, therefore it is necessary to decode the content of the frame to get length etc.
     There are some protocol restrictions that help with the detection.
 
     For client:
        - a request causes 1 response !
-       - Multiple requests are NOT allowed (master-slave protocol)
+       - Multiple requests are NOT allowed (master controlled protocol)
        - the server will not retransmit responses
 
     this means decoding is always exactly 1 frame (response)
 
     For server (Single device)
-       - only 1 request allowed (master-slave) protocol
+       - only 1 request allowed (master controlled protocol)
        - the client (master) may retransmit but in larger time intervals
 
     this means decoding is always exactly 1 frame (request)
 
     For server (Multidrop line --> devices in parallel)
-       - only 1 request allowed (master-slave) protocol
-       - other devices will send responses
+       - only 1 request allowed (master controlled protocol)
+       - other devices will send responses (unknown dev_id)
        - the client (master) may retransmit but in larger time intervals
 
     this means decoding is always exactly 1 frame request, however some requests
-    will be for unknown slaves, which must be ignored together with the
-    response from the unknown slave.
+    will be for unknown devices, which must be ignored together with the
+    response from the unknown device.
 
     Recovery from bad cabling and unstable USB etc is important,
     the following scenarios is possible:
 
-        - garble data before frame
-        - garble data in frame
-        - garble data after frame
-        - data in frame garbled (wrong CRC)
+        - garble data before frame (extra data preceding)
+        - garble data in frame (wrong CRC)
+        - garble data after frame (extra data after correct frame)
 
     decoding assumes the frame is sound, and if not enters a hunting mode.
 
-    The 3.5 byte transmission time at the slowest speed 1.200Bps is 31ms.
-    Device drivers will typically flush buffer after 10ms of silence.
-    If no data is received for 50ms the transmission / frame can be considered
-    complete.
-
-    The following table is a listing of the baud wait times for the specified
-    baud rates::
-
-        ------------------------------------------------------------------
-         Baud  1.5c (18 bits)   3.5c (38 bits)
-        ------------------------------------------------------------------
-         1200   13333.3 us       31666.7 us
-         4800    3333.3 us        7916.7 us
-         9600    1666.7 us        3958.3 us
-        19200     833.3 us        1979.2 us
-        38400     416.7 us         989.6 us
-        ------------------------------------------------------------------
-        1 Byte = start + 8 bits + parity + stop = 11 bits
-        (1/Baud)(bits) = delay seconds
-
-    .. Danger:: Current framerRTU does not support running the server on a multipoint rs485 line.
+    .. Danger:: framerRTU only offer limited support for running the server in parallel with other devices.
 
     """
 
-    MIN_SIZE = 4  # <slave id><function code><crc 2 bytes>
+    MIN_SIZE = 4  # <device id><function code><crc 2 bytes>
+    device_ids: list[int] = [] # will be converted to instance variable
 
     @classmethod
     def generate_crc16_table(cls) -> list[int]:
@@ -99,6 +79,9 @@ class FramerRTU(FramerBase):
         return result
     crc16_table: list[int] = [0]
 
+    def setMultidrop(self, device_ids: list[int]):
+        """Activate multidrop support."""
+        self.device_ids = device_ids
 
     def decode(self, data: bytes) -> tuple[int, int, int, bytes]:
         """Decode ADU."""
@@ -108,10 +91,13 @@ class FramerRTU(FramerBase):
                 Log.debug("Short frame: {} wait for more data", data, ":hex")
                 return 0, 0, 0, self.EMPTY
             dev_id = int(data[used_len])
+            if self.device_ids and dev_id not in self.device_ids:
+                return data_len, 0, 0, self.EMPTY
             if not (pdu_class := self.decoder.lookupPduClass(data[used_len:])):
                 continue
             if not (size := pdu_class.calculateRtuFrameSize(data[used_len:])):
-                size = data_len +1
+                Log.debug("Frame - rtu_byte_count_pos wrong")
+                return 0, dev_id, 0, self.EMPTY
             if data_len < used_len +size:
                 Log.debug("Frame - not ready")
                 return 0, dev_id, 0, self.EMPTY
@@ -122,13 +108,13 @@ class FramerRTU(FramerBase):
                 if not FramerRTU.check_CRC(data[used_len : start_crc], crc_val):
                     Log.debug("Frame check failed, possible garbage after frame, testing..")
                     continue
-                return start_crc + 2, dev_id, 0, data[used_len + 1 : start_crc]
+                return data_len, dev_id, 0, data[used_len + 1 : start_crc]
         return 0, 0, 0, self.EMPTY
 
 
-    def encode(self, pdu: bytes, device_id: int, _tid: int) -> bytes:
+    def encode(self, payload: bytes, device_id: int, _tid: int) -> bytes:
         """Encode ADU."""
-        frame = device_id.to_bytes(1,'big') + pdu
+        frame = device_id.to_bytes(1,'big') + payload
         return frame + FramerRTU.compute_CRC(frame).to_bytes(2,'big')
 
     @classmethod

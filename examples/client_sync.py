@@ -39,7 +39,7 @@ import sys
 try:
     import helper  # type: ignore[import-not-found]
 except ImportError:
-    print("*** ERROR --> THIS EXAMPLE needs the example directory, please see \n\
+    print("*** ERROR --> THIS EXAMPLE needs to be run in the example directory, please see \n\
           https://pymodbus.readthedocs.io/en/latest/source/examples.html\n\
           for more information.")
     sys.exit(-1)
@@ -49,7 +49,6 @@ from pymodbus import ModbusException
 
 
 _logger = logging.getLogger(__file__)
-_logger.setLevel("DEBUG")
 
 
 def setup_sync_client(description=None, cmdline=None):
@@ -83,7 +82,7 @@ def setup_sync_client(description=None, cmdline=None):
             # UDP setup parameters
             #    source_address=None,
         )
-    elif args.comm == "serial":
+    elif args.comm == "serial":  # pragma: no cover
         client = modbusClient.ModbusSerialClient(
             port=args.port,  # serial port
             # Common optional parameters:
@@ -97,7 +96,7 @@ def setup_sync_client(description=None, cmdline=None):
             #    stopbits=1,
             #    handle_local_echo=False,
         )
-    elif args.comm == "tls":
+    elif args.comm == "tls":  # pragma: no cover
         client = modbusClient.ModbusTlsClient(
             args.host,
             port=args.port,
@@ -119,7 +118,7 @@ def run_sync_client(client, modbus_calls=None):
     """Run sync client."""
     _logger.info("### Client starting")
     client.connect()
-    if modbus_calls:
+    if modbus_calls:  # pragma: no cover
         modbus_calls(client)
     client.close()
     _logger.info("### End of Program")
@@ -128,9 +127,9 @@ def run_sync_client(client, modbus_calls=None):
 def run_a_few_calls(client):
     """Test connection works."""
     try:
-        rr = client.read_coils(32, count=1, slave=1)
+        rr = client.read_coils(32, count=1, device_id=1)
         assert len(rr.bits) == 8
-        rr = client.read_holding_registers(4, count=2, slave=1)
+        rr = client.read_holding_registers(4, count=2, device_id=1)
         assert rr.registers[0] == 17
         assert rr.registers[1] == 17
     except ModbusException as exc:

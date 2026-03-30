@@ -10,28 +10,24 @@ import os
 from typing import TYPE_CHECKING
 
 
-try:
+with contextlib.suppress(ImportError):
     from aiohttp import web
 
-    AIOHTTP_MISSING = False
-except ImportError:
-    AIOHTTP_MISSING = True
-    if TYPE_CHECKING:  # always False at runtime
-        # type checkers do not understand the Raise RuntimeError in __init__()
-        from aiohttp import web
-
-from pymodbus.datastore import ModbusServerContext, ModbusSimulatorContext
-from pymodbus.datastore.simulator import Label
-from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.logging import Log
-from pymodbus.pdu import DecodePDU
-from pymodbus.server.server import (
+from ...datastore import ModbusServerContext, ModbusSimulatorContext
+from ...datastore.simulator import Label
+from ...logging import Log
+from ...pdu import DecodePDU
+from ...pdu.device import ModbusDeviceIdentification
+from ..server import (
     ModbusSerialServer,
     ModbusTcpServer,
     ModbusTlsServer,
     ModbusUdpServer,
 )
 
+
+if TYPE_CHECKING:
+    from aiohttp import web
 
 MAX_FILTER = 1000
 
@@ -100,7 +96,7 @@ class ModbusSimulatorServer:
 
     Example::
 
-        from pymodbus.server import ModbusSimulatorServer
+        from pymodbus import ModbusSimulatorServer
 
         async def run():
             simulator = ModbusSimulatorServer(
@@ -124,11 +120,6 @@ class ModbusSimulatorServer:
         custom_actions_module: str | None = None,
     ):
         """Initialize http interface."""
-        if AIOHTTP_MISSING:
-            raise RuntimeError(
-                "Simulator server requires aiohttp. "
-                'Please install with "pip install aiohttp" and try again.'
-            )
         with open(json_file, encoding="utf-8") as file:
             setup = json.load(file)
 
@@ -144,22 +135,22 @@ class ModbusSimulatorServer:
         else:
             custom_actions_dict = {}
         server = setup["server_list"][modbus_server]
-        if server["comm"] != "serial":
+        if server["comm"] != "serial":  # pragma: no cover
             server["address"] = (server["host"], server["port"])
             del server["host"]
             del server["port"]
         device = setup["device_list"][modbus_device]
         self.datastore_context = ModbusSimulatorContext(
-            device, custom_actions_dict or {}
+            device, custom_actions_dict or None
         )
         datastore = None
         if "device_id" in server:
             # Designated ModBus unit address. Will only serve data if the address matches
-            datastore = ModbusServerContext(slaves={int(server["device_id"]): self.datastore_context}, single=False)
+            datastore = ModbusServerContext(devices={int(server["device_id"]): self.datastore_context}, single=False)
             del server["device_id"]
         else:
             # Will server any request regardless of addressing
-            datastore = ModbusServerContext(slaves=self.datastore_context, single=True)
+            datastore = ModbusServerContext(devices=self.datastore_context, single=True)
 
         comm = comm_class[server.pop("comm")]
         framer = server.pop("framer")
@@ -180,7 +171,7 @@ class ModbusSimulatorServer:
             [
                 web.get("/api/{tail:[a-z]*}", self.handle_html),
                 web.post("/restapi/{tail:[a-z]*}", self.handle_json),
-                web.get("/{tail:[a-z0-9.]*}", self.handle_html_static),
+                web.get("/{tail:[a-z0-9_.]*}", self.handle_html_static),
                 web.get("/", self.handle_html_static),
             ]
         )
@@ -214,24 +205,18 @@ class ModbusSimulatorServer:
         self.refresh_rate = 0
         self.register_filter: list[int] = []
         self.call_list: list[CallTracer] = []
-        self.request_lookup = DecodePDU(True).lookup
         self.call_monitor = CallTypeMonitor()
         self.call_response = CallTypeResponse()
         app_key = getattr(web, 'AppKey', str)  # fall back to str for aiohttp < 3.9.0
         self.api_key = app_key("modbus_server")
+        self.ready_event = asyncio.Event()
 
     async def start_modbus_server(self, app):
         """Start Modbus server as asyncio task."""
-        try:
-            if getattr(self.modbus_server, "start", None):
-                await self.modbus_server.start()
-            app[self.api_key] = asyncio.create_task(
-                self.modbus_server.serve_forever()
-            )
-            app[self.api_key].set_name("simulator modbus server")
-        except Exception as exc:
-            Log.error("Error starting modbus server, reason: {}", exc)
-            raise exc
+        app[self.api_key] = asyncio.create_task(
+            self.modbus_server.serve_forever()
+        )
+        app[self.api_key].set_name("simulator modbus server")
         Log.info(
             "Modbus server started on {}", self.modbus_server.comm_params.source_address
         )
@@ -253,6 +238,7 @@ class ModbusSimulatorServer:
             await self.runner.setup()
             self.site = web.TCPSite(self.runner, self.http_host, self.http_port)
             await self.site.start()
+            self.ready_event.set()
         except Exception as exc:
             Log.error("Error starting http server, reason: {}", exc)
             raise exc
@@ -269,7 +255,7 @@ class ModbusSimulatorServer:
             self.serving.set_result(True)
         await asyncio.sleep(0)
 
-    async def handle_html_static(self, request):
+    async def handle_html_static(self, request: web.Request):  # pragma: no cover
         """Handle static html."""
         if not (page := request.path[1:]):
             page = "index.html"
@@ -282,7 +268,7 @@ class ModbusSimulatorServer:
         except (FileNotFoundError, IsADirectoryError) as exc:
             raise web.HTTPNotFound(reason="File not found") from exc
 
-    async def handle_html(self, request):
+    async def handle_html(self, request: web.Request):  # pragma: no cover
         """Handle html."""
         page_type = request.path.split("/")[-1]
         params = dict(request.query)
@@ -298,7 +284,7 @@ class ModbusSimulatorServer:
         new_page = self.generator_html[page_type][1](params, html)
         return web.Response(text=new_page, content_type="text/html")
 
-    async def handle_json(self, request):
+    async def handle_json(self, request: web.Request):
         """Handle api registers."""
         command = request.path.split("/")[-1]
         params = await request.json()
@@ -309,7 +295,7 @@ class ModbusSimulatorServer:
             return web.json_response({"result": "error", "error": f"Unhandled error Error: {exc}"})
         return web.json_response(result)
 
-    def build_html_registers(self, params, html):
+    def build_html_registers(self, params, html):  # pragma: no cover
         """Build html registers page."""
         result_txt, foot = self.helper_handle_submit(params, self.submit_html)
         if not result_txt:
@@ -354,7 +340,7 @@ class ModbusSimulatorServer:
         )
         return new_html
 
-    def build_html_calls(self, params: dict, html: str) -> str:
+    def build_html_calls(self, params: dict, html: str) -> str:  # pragma: no cover
         """Build html calls page."""
         result_txt, foot = self.helper_handle_submit(params, self.submit_html)
         if not foot:
@@ -367,9 +353,9 @@ class ModbusSimulatorServer:
             (1, "ILLEGAL_FUNCTION"),
             (2, "ILLEGAL_ADDRESS"),
             (3, "ILLEGAL_VALUE"),
-            (4, "SLAVE_FAILURE"),
+            (4, "DEVICE_FAILURE"),
             (5, "ACKNOWLEDGE"),
-            (6, "SLAVE_BUSY"),
+            (6, "DEVICE_BUSY"),
             (7, "MEMORY_PARITY_ERROR"),
             (10, "GATEWAY_PATH_UNAVIABLE"),
             (11, "GATEWAY_NO_RESPONSE"),
@@ -387,13 +373,13 @@ class ModbusSimulatorServer:
             else ""
         )
         function_codes = ""
-        for function in self.request_lookup.values():
+        for function in DecodePDU(True).list_function_codes():
             selected = (
                 "selected"
-                if function.function_code == self.call_monitor.function
+                if function == self.call_monitor.function
                 else ""
             )
-            function_codes += f"<option value={function.function_code} {selected}>function code name</option>"
+            function_codes += f"<option value={function} {selected}>function code name</option>"
         simulation_action = (
             "ACTIVE" if self.call_response.active != RESPONSE_INACTIVE else ""
         )
@@ -403,9 +389,7 @@ class ModbusSimulatorServer:
             del self.call_list[0]
         call_rows = ""
         for entry in reversed(self.call_list):
-            # req_obj = self.request_lookup[entry[1]]
             call_rows += f"<tr><td>{entry.call} - {entry.fc}</td><td>{entry.address}</td><td>{entry.count}</td><td>{entry.data.decode()}</td></tr>"
-            # line += req_obj.funcion_code_name
         new_html = (
             html.replace("<!--SIMULATION_ACTIVE-->", simulation_action)
             .replace("FUNCTION_RANGE_START", range_start_html)
@@ -455,11 +439,11 @@ class ModbusSimulatorServer:
         )
         return new_html
 
-    def build_html_log(self, _params, html):
+    def build_html_log(self, _params, html):  # pragma: no cover
         """Build html log page."""
         return html
 
-    def build_html_server(self, _params, html):
+    def build_html_server(self, _params, html):  # pragma: no cover
         """Build html server page."""
         return html
 
@@ -470,9 +454,9 @@ class ModbusSimulatorServer:
             "Set": self.action_set,
         })
 
-        if not result_txt:
+        if not result_txt:  # pragma: no cover
             result_txt = "ok"
-        if not foot:
+        if not foot:  # pragma: no cover
             foot = "Operation completed successfully"
 
         # Extract necessary parameters
@@ -519,9 +503,9 @@ class ModbusSimulatorServer:
             "Add": self.action_add,
             "Simulate": self.action_simulate,
         })
-        if not foot:
+        if not foot:  # pragma: no cover
             foot = "Monitoring active" if self.call_monitor.active else "not active"
-        if not result_txt:
+        if not result_txt:  # pragma: no cover
             result_txt = "ok"
 
         function_error = []
@@ -529,9 +513,9 @@ class ModbusSimulatorServer:
             (1, "ILLEGAL_FUNCTION"),
             (2, "ILLEGAL_ADDRESS"),
             (3, "ILLEGAL_VALUE"),
-            (4, "SLAVE_FAILURE"),
+            (4, "DEVICE_FAILURE"),
             (5, "ACKNOWLEDGE"),
-            (6, "SLAVE_BUSY"),
+            (6, "DEVICE_BUSY"),
             (7, "MEMORY_PARITY_ERROR"),
             (10, "GATEWAY_PATH_UNAVIABLE"),
             (11, "GATEWAY_NO_RESPONSE"),
@@ -554,20 +538,20 @@ class ModbusSimulatorServer:
         )
 
         function_codes = []
-        for function in self.request_lookup.values():
+        for function in DecodePDU(True).list_function_codes():
             function_codes.append({
-                "value": function.function_code,
+                "value": function,
                 "text": "function code name",
-                "selected": function.function_code == self.call_monitor.function
+                "selected": function == self.call_monitor.function
             })
 
         simulation_action = "ACTIVE" if self.call_response.active != RESPONSE_INACTIVE else ""
 
         max_len = MAX_FILTER if self.call_monitor.active else 0
-        while len(self.call_list) > max_len:
+        while len(self.call_list) > max_len:  # pragma: no cover
             del self.call_list[0]
         call_rows = []
-        for entry in reversed(self.call_list):
+        for entry in reversed(self.call_list):  # pragma: no cover
             call_rows.append({
                 "call": entry.call,
                 "fc": entry.fc,
@@ -618,18 +602,18 @@ class ModbusSimulatorServer:
             range_start = -1
         try:
             range_stop = int(params.get("range_stop", range_start))
-        except ValueError:
+        except ValueError:  # pragma: no cover
             range_stop = -1
         if (submit := params["submit"]) not in submit_actions:
             return None, None
         return submit_actions[submit](params, range_start, range_stop)
 
-    def action_clear(self, _params, _range_start, _range_stop):
+    def action_clear(self, _params, _range_start, _range_stop):  # pragma: no cover
         """Clear register filter."""
         self.register_filter = []
         return None, None
 
-    def action_stop(self, _params, _range_start, _range_stop):
+    def action_stop(self, _params, _range_start, _range_stop):  # pragma: no cover
         """Stop call monitoring."""
         self.call_monitor = CallTypeMonitor()
         return None, "Stopped monitoring"
@@ -639,7 +623,7 @@ class ModbusSimulatorServer:
         self.call_response = CallTypeResponse()
         return None, None
 
-    def action_add(self, params, range_start, range_stop):
+    def action_add(self, params, range_start, range_stop):  # pragma: no cover
         """Build list of registers matching filter."""
         reg_action = int(params.get("action", -1))
         reg_writeable = "writeable" in params
@@ -667,7 +651,7 @@ class ModbusSimulatorServer:
         self.register_filter.sort()
         return None, None
 
-    def action_monitor(self, params, range_start, range_stop):
+    def action_monitor(self, params, range_start, range_stop):  # pragma: no cover
         """Start monitoring calls."""
         self.call_monitor.range_start = range_start
         self.call_monitor.range_stop = range_stop
@@ -679,7 +663,7 @@ class ModbusSimulatorServer:
         self.call_monitor.active = True
         return None, None
 
-    def action_set(self, params, _range_start, _range_stop):
+    def action_set(self, params, _range_start, _range_stop):  # pragma: no cover
         """Set register value."""
         if not (register := params["register"]):
             return "Missing register", None
@@ -690,7 +674,7 @@ class ModbusSimulatorServer:
             self.datastore_context.registers[register].access = True
         return None, None
 
-    def action_simulate(self, params, _range_start, _range_stop):
+    def action_simulate(self, params, _range_start, _range_stop):  # pragma: no cover
         """Simulate responses."""
         self.call_response.active = int(params["response_type"])
         if "response_split" in params:

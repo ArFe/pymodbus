@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import struct
 
-from pymodbus.constants import ModbusStatus
-from pymodbus.datastore import ModbusSlaveContext
-from pymodbus.device import DeviceInformationFactory, ModbusControlBlock
-from pymodbus.pdu.pdu import ModbusPDU
+from ..constants import ModbusStatus
+from ..datastore import ModbusServerContext
+from .decoders import DecodePDU
+from .device import DeviceInformationFactory, ModbusControlBlock
+from .pdu import ModbusPDU
 
 
 _MCB = ModbusControlBlock()
@@ -22,13 +23,14 @@ class ReadExceptionStatusRequest(ModbusPDU):
         """Encode the message."""
         return b""
 
-    def decode(self, _data: bytes) -> None:
+    def decode(self, data: bytes) -> None:
         """Decode data part of the message."""
 
-    async def update_datastore(self, _context: ModbusSlaveContext) -> ModbusPDU:
-        """Run a read exception status request against the store."""
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
+        """Update diagnostic request on the given device."""
+        _ = context
         status = _MCB.Counter.summary()
-        return ReadExceptionStatusResponse(status=status, dev_id=self.dev_id, transaction_id=self.transaction_id)
+        return ReadExceptionStatusResponse(status=status, dev_id=device_id, transaction_id=self.transaction_id)
 
 
 class ReadExceptionStatusResponse(ModbusPDU):
@@ -59,13 +61,14 @@ class GetCommEventCounterRequest(ModbusPDU):
         """Encode the message."""
         return b""
 
-    def decode(self, _data: bytes) -> None:
+    def decode(self, data: bytes) -> None:
         """Decode data part of the message."""
 
-    async def update_datastore(self, _context) -> ModbusPDU:
-        """Run a read exception status request against the store."""
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
+        """Update diagnostic request on the given device."""
+        _ = context
         count = _MCB.Counter.Event
-        return GetCommEventCounterResponse(count=count, dev_id=self.dev_id, transaction_id=self.transaction_id)
+        return GetCommEventCounterResponse(count=count, dev_id=device_id, transaction_id=self.transaction_id)
 
 
 class GetCommEventCounterResponse(ModbusPDU):
@@ -81,7 +84,7 @@ class GetCommEventCounterResponse(ModbusPDU):
 
     def decode(self, data: bytes) -> None:
         """Decode a the response."""
-        ready, self.count = struct.unpack(">HH", data)
+        ready, self.count = struct.unpack(">HH", data[:4])
         self.status = ready == ModbusStatus.READY
 
 
@@ -95,17 +98,18 @@ class GetCommEventLogRequest(ModbusPDU):
         """Encode the message."""
         return b""
 
-    def decode(self, _data: bytes) -> None:
+    def decode(self, data: bytes) -> None:
         """Decode data part of the message."""
 
-    async def update_datastore(self, _context: ModbusSlaveContext) -> ModbusPDU:
-        """Run a read exception status request against the store."""
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
+        """Update diagnostic request on the given device."""
+        _ = context
         return GetCommEventLogResponse(
             status=True,
             message_count=_MCB.Counter.BusMessage,
             event_count=_MCB.Counter.Event,
             events=_MCB.getEvents(),
-            dev_id=self.dev_id, transaction_id=self.transaction_id)
+            dev_id=device_id, transaction_id=self.transaction_id)
 
 
 class GetCommEventLogResponse(ModbusPDU):
@@ -146,8 +150,8 @@ class GetCommEventLogResponse(ModbusPDU):
             self.events.append(int(data[i]))
 
 
-class ReportSlaveIdRequest(ModbusPDU):
-    """ReportSlaveIdRequest."""
+class ReportDeviceIdRequest(ModbusPDU):
+    """ReportDeviceIdRequest."""
 
     function_code = 0x11
     rtu_frame_size = 4
@@ -156,11 +160,12 @@ class ReportSlaveIdRequest(ModbusPDU):
         """Encode the message."""
         return b""
 
-    def decode(self, _data: bytes) -> None:
+    def decode(self, data: bytes) -> None:
         """Decode data part of the message."""
 
-    async def update_datastore(self, _context: ModbusSlaveContext) -> ModbusPDU:
-        """Run a report slave id request against the store."""
+    async def datastore_update(self, context: ModbusServerContext, device_id: int) -> ModbusPDU:
+        """Update diagnostic request on the given device."""
+        _ = context
         information = DeviceInformationFactory.get(_MCB)
         id_data = []
         for v_item in information.values():
@@ -171,11 +176,13 @@ class ReportSlaveIdRequest(ModbusPDU):
 
         identifier = b"-".join(id_data)
         identifier = identifier or b"Pymodbus"
-        return ReportSlaveIdResponse(identifier=identifier, dev_id=self.dev_id, transaction_id=self.transaction_id)
+        return ReportDeviceIdResponse(identifier=identifier, dev_id=device_id, transaction_id=self.transaction_id)
 
+ID_ON = 0xFF
+ID_OFF = 0x00
 
-class ReportSlaveIdResponse(ModbusPDU):
-    """ReportSlaveIdRequeste."""
+class ReportDeviceIdResponse(ModbusPDU):
+    """ReportDeviceIdRequeste."""
 
     function_code = 0x11
     rtu_byte_count_pos = 2
@@ -188,7 +195,7 @@ class ReportSlaveIdResponse(ModbusPDU):
 
     def encode(self) -> bytes:
         """Encode the response."""
-        status = ModbusStatus.SLAVE_ON if self.status else ModbusStatus.SLAVE_OFF
+        status = ID_ON if self.status else ID_OFF
         length = len(self.identifier) + 1
         packet = struct.pack(">B", length)
         packet += self.identifier  # we assume it is already encoded
@@ -204,4 +211,9 @@ class ReportSlaveIdResponse(ModbusPDU):
         self.byte_count = int(data[0])
         self.identifier = data[1 : self.byte_count + 1]
         status = int(data[-1])
-        self.status = status == ModbusStatus.SLAVE_ON
+        self.status = status == ID_ON
+
+DecodePDU.add_pdu(ReadExceptionStatusRequest, ReadExceptionStatusResponse)
+DecodePDU.add_pdu(GetCommEventCounterRequest, GetCommEventCounterResponse)
+DecodePDU.add_pdu(GetCommEventLogRequest, GetCommEventLogResponse)
+DecodePDU.add_pdu(ReportDeviceIdRequest, ReportDeviceIdResponse)

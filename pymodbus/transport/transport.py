@@ -49,6 +49,7 @@ It basically provides a pipe, without caring about the actual data content.
 from __future__ import annotations
 
 import asyncio
+import copy
 import dataclasses
 import ssl
 from abc import abstractmethod
@@ -58,8 +59,8 @@ from enum import Enum
 from functools import partial
 from typing import Any
 
-from pymodbus.logging import Log
-from pymodbus.transport.serialtransport import create_serial_connection
+from ..logging import Log
+from .serialtransport import create_serial_connection
 
 
 NULLMODEM_HOST = "__pymodbus_nullmodem"
@@ -87,7 +88,6 @@ class CommParams:
     host: str = "localhost" # On some machines this will now be ::1
     port: int = 0
     source_address: tuple[str, int] | None = None
-    handle_local_echo: bool = False
 
     # tls
     sslctx: ssl.SSLContext | None = None
@@ -97,6 +97,7 @@ class CommParams:
     bytesize: int = -1
     parity: str = ''
     stopbits: int = -1
+    handle_local_echo: bool = False
 
     @classmethod
     def generate_ssl(
@@ -126,9 +127,9 @@ class CommParams:
             )
         return new_sslctx
 
-    def copy(self) -> CommParams:
+    def copy(self: CommParams) -> CommParams:
         """Create a copy."""
-        return dataclasses.replace(self)
+        return copy.copy(self)
 
 
 class ModbusProtocol(asyncio.BaseProtocol):
@@ -160,6 +161,7 @@ class ModbusProtocol(asyncio.BaseProtocol):
         self.unique_id: str = str(id(self))
         self.reconnect_delay_current = 0.0
         self.sent_buffer: bytes = b""
+        self.last_frame: int = 0
         self.loop: asyncio.AbstractEventLoop
         if is_sync:
             return
@@ -257,9 +259,10 @@ class ModbusProtocol(asyncio.BaseProtocol):
         self.is_closing = False
         self.is_listener = True
         try:
-            self.transport = await self.call_create()
-            if isinstance(self.transport, tuple):
-                self.transport = self.transport[0]
+            new_transport = await self.call_create()
+            if isinstance(new_transport, tuple):
+                new_transport = new_transport[0]
+            self.transport = new_transport
         except OSError as exc:
             Log.warning("Failed to start server {}", exc)
             self.__close()
@@ -279,14 +282,14 @@ class ModbusProtocol(asyncio.BaseProtocol):
         self.reset_delay()
         self.callback_connected()
 
-    def connection_lost(self, reason: Exception | None) -> None:
+    def connection_lost(self, exc: Exception | None) -> None:
         """Call from asyncio, when the connection is lost or closed.
 
-        :param reason: None or an exception object
+        :param exc: None or an exception object
         """
         if not self.transport or self.is_closing:
             return
-        Log.debug("Connection lost {} due to {}", self.comm_params.comm_name, reason)
+        Log.debug("Connection lost {} due to {}", self.comm_params.comm_name, exc)
         self.__close()
         if self.is_listener:
             self.reconnect_task = asyncio.create_task(self.do_relisten())
@@ -294,7 +297,7 @@ class ModbusProtocol(asyncio.BaseProtocol):
         elif not self.listener and self.comm_params.reconnect_delay:
             self.reconnect_task = asyncio.create_task(self.do_reconnect())
             self.reconnect_task.set_name("transport reconnect")
-        self.callback_disconnected(reason)
+        self.callback_disconnected(exc)
 
     def data_received(self, data: bytes) -> None:
         """Call when some data is received.
@@ -326,23 +329,14 @@ class ModbusProtocol(asyncio.BaseProtocol):
                 self.sent_buffer = b""
             if not data:
                 return
-        Log.debug(
-            "recv: {} old_data: {} addr={}",
-            data,
-            ":hex",
-            self.recv_buffer,
-            ":hex",
-            addr,
-        )
+        Log.transport_dump(Log.RECV_DATA, data, self.recv_buffer)
+        if len(self.recv_buffer) > 1024:
+            self.recv_buffer = b''
         self.recv_buffer += data
         cut = self.callback_data(self.recv_buffer, addr=addr)
         self.recv_buffer = self.recv_buffer[cut:]
         if self.recv_buffer:
-            Log.debug(
-                "recv, unused data waiting for next packet: {}",
-                self.recv_buffer,
-                ":hex",
-            )
+            Log.transport_dump(Log.EXTRA_DATA, None, self.recv_buffer)
 
     def eof_received(self) -> None:
         """Accept other end terminates connection."""
@@ -361,7 +355,7 @@ class ModbusProtocol(asyncio.BaseProtocol):
 
     @abstractmethod
     def callback_connected(self) -> None:
-        """Call when connection is succcesfull."""
+        """Call when connection is successful."""
 
     @abstractmethod
     def callback_disconnected(self, exc: Exception | None) -> None:
@@ -383,7 +377,7 @@ class ModbusProtocol(asyncio.BaseProtocol):
         if not self.transport:
             Log.error("Cancel send, because not connected!")
             return
-        Log.debug("send: {}", data, ":hex")
+        Log.transport_dump(Log.SEND_DATA, data, None)
         self.recv_buffer = b""
         if self.comm_params.handle_local_echo:
             self.sent_buffer += data
@@ -604,8 +598,9 @@ class NullModem(asyncio.DatagramTransport, asyncio.Transport):
         if self.protocol:
             self.protocol.connection_lost(None)
 
-    def sendto(self, data: bytes, _addr: Any = None) -> None:
+    def sendto(self, data: bytes, addr: Any = None) -> None:
         """Send datagrame."""
+        _ = addr
         self.write(data)
 
     def write(self, data: bytes) -> None:

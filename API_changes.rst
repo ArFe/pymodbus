@@ -1,14 +1,65 @@
 API changes
 ===========
-Versions (X.Y.Z) where Z > 0 e.g. 3.0.1 do NOT have API changes!
+Versions (X.Y.Z) where Z == 0 e.g. 3.0.1 do NOT have API changes!
 
------------------
+API changes 3.13.0
+------------------
+- removed RemoteDeviceContext, because it only is a partial forwarder
+  a proper forwarder should be made at frame level.
+- datastore get/setValues is removed,
+  please use server.async_get/setValues instead.
+- datastore show a deprecation warning
+- SimData/SimDevice have been updated
+
+API changes 3.12.0
+------------------
+- when using no_response_expected=, the call returns None
+- remove idle_time() from sync client since it is void
+- ModbusSerialServer new parameter "allow_multiple_devices"
+  which gives limited multipoint support with baudrate < 19200 and a good RS485 line.
+- SimData / SimDevice are now integrated in the server (and will mid-term replace other datastores).
+
+API changes 3.11.0
+------------------
+- Revert wrong byte handling in v3.10.0
+  bit handling order is LSB-> MSB for each byte
+  REMARK: word are ordered depending on big/little endian
+  readCoils and other bit functions now return bit in logical order (NOT byte order)
+
+  Example:
+  Hex bytes: 0x00 0x01
+  delivers False * 8 True False * 7
+
+  Hex bytes: 0x01 0x03
+  delivers True False * 7 True True False * 6
+
+API changes 3.10.0
+------------------
+- ModbusSlaveContext replaced by ModbusDeviceContext
+- payload removed (replaced by "convert_to/from_registers")
+- slave=, slaves= replaced by device_id=, device_ids=
+- slave request names changed to device
+- bit handling order is LSB (last byte) -> MSB (first byte)
+  readCoils and other bit functions now return bit in logical order (NOT byte order)
+
+  Older versions had LSB -> MSB pr byte
+  V3.10 have LSB -> MSB across bytes.
+
+  Example:
+  Hex bytes: 0x00 0x01
+  Older versions would deliver False * 8 True False * 7
+  V3.10 deliver True False * 15
+
+  Hex bytes: 0x01 0x03
+  Older versions would deliver True False * 7 True True False * 6
+  V3.10 deliver True True False * 6 True False * 7
+
 API changes 3.9.0
 -----------------
 - Python 3.9 is reaching end of life, and no longer supported.
   Depending on the usage the code might still work
 - Start*Server, custom_functions -> custom_pdu (handled by Modbus<x>Server)
-- payload removed (replaced by "convert_combined_to/from_registers")
+- Bit handling (e.g. read_coils) was not handling the bits in the correct order
 
 API changes 3.8.0
 -----------------

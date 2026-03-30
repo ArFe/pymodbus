@@ -7,6 +7,187 @@ helps make pymodbus a better product.
 
 :ref:`Authors`: contains a complete list of volunteers have contributed to each major version.
 
+Version 3.12.1
+--------------
+* SimDevice / SimRuntime fixes. (#2871)
+* No inter_frame_time check for baudrate > 38000. (#2882)
+* Fix smaller bugs in test, part 2. (#2880)
+* simulator startup armoring and update 3.x docs (#2877)
+* Fix smaller bugs in test, part 1. (#2879)
+* Update README.rst. (#2878)
+* Coverage limit is 99.95% (to allow a little margin).
+* Removed simulator README, due to unused.
+* fix: add warning log when using internal default simulator config (#2874)
+* Document simulator entrypoint in README (#2873)
+
+Version 3.12.0
+--------------
+* Upgrade library versions installed by pip. (#2868)
+* SimData/Device integrate in server. (#2866)
+* Add bind to ModbusUdpClient. (#2867)
+* Solve Zuban problem. (#2864)
+* Fix wrong parameter name in function docstring. Fix set_values does not accept tuple. (#2858)
+* Add context.async_get/setValues with device_id. (#2863)
+* SimData/SimDevice ready for server integration. (#2857)
+* Reactivate pytest coverage. (#2862)
+* No blank issue template.
+* Update issue templates
+* Fix ReadFifoQueueResponse count (#2861)
+* Limited support for multiple devices on RS485. (#2846)
+* Simulator DataBlock docstring corrections (#2853)
+* fix README.rst and troubleshooting (#2851)
+* Solve DoS vulnerability. (#2852)
+* server handle_local_echo only in comm_params. (#2847)
+* di is for discrete input (#2842)
+* Allow any dev_id, when requesting dev_id 0. (#2845)
+* Allow response transaction_id 0. (#2844)
+* Use relative import. (#2836)
+* ModbusServerContext.device_ids() docstring (#2835)
+* Include ModbusSequentialDataBlock into the documentation (#2833)
+* Fix Modbus TCP protocol ID validation in FramerSocket (#2830)
+* Remove idle_time() from sync client, which anyhow was void. (#2828)
+* Correct check_ci.sh. (#2829)
+* Replace mypy with zuban (#2825)
+* Fix monitoring of functions (#2826)
+* Improve types (#2824)
+* dicts have preserved insertion order since 3.7 (#2823)
+* asyncio.iscoroutinefunction() is deprecated (#2822)
+* Remove pypi-alias. (#2818)
+
+Version 3.11.4
+--------------
+* Prepare 3.11.4 (#2815)
+* Update CodeQL to v4. (#2816)
+* Solve python3.14 problem (and mypy upgrade). (#2814)
+* More doc corrections. (#2813)
+* Correct wrong example in doc. (#2812)
+* update to pylint 4 (#2806)
+* ExceptionResponse for no_response_expected. (#2801)
+* Complete test for SimData / SimDevice. (#2798)
+* SimData and simDevice. (#2796)
+* Avoid windows CI problem with log testing. (#2797)
+* Update doc with 4.0 information. (#2795)
+* Make global DataType. (#2794)
+* Remove test pymodbus.log file. (#2793)
+* Update README. (#2788)
+* Activate ruff indent checking. (#2787)
+
+Version 3.11.3
+--------------
+* Coverage 100% (using no cover, when needed). (#2783)
+* Create pypi alias for home-assistant. (#2782)
+* Bump utilities in pyproject.toml. (#2780)
+* Fix pymodbus.simulator. (#2773)
+
+Version 3.11.2
+--------------
+* Clarify documentation on reconnect_delay (#2769)
+* Solve CI complaints. (#2766)
+* Coverage not allowed below 99.5%. (#2765)
+* Test coverage global 100%. (#2764)
+* Test coverage simulator 100%. (#2763)
+* Test coverage server 100%. (#2760)
+* Fix python3.14 deprecation. (#2759)
+* Test coverage datastore 100%. (#2757)
+* Context test failed due to function code overwritten. (#2758)
+* Test coverage transaction 100%. (#2756)
+* Test coverage pdu 100%. (#2755)
+* Framer test 100%. (#2754)
+* llow sub_function_code is custom PDU. (#2753)
+* Generate pdu table direct. (#2752)
+* Clean pdu lookup in simulator. (#2751)
+* diag sub_function_code is 2 bytes. (#2750)
+* Requesthandler ignore missing devices logging (#2749)
+* Simplify pdu lookup. (#2745)
+* Missing coma in string representation of ModbusPDU (#2748)
+* Correct "install uv". (#2744)
+* Suppress aiohttp missing. (#2743)
+* Remove garbage bytes in serial comm. (#2741)
+* Test now included python 3.14.
+* Stricter types with pyright (#2731)
+
+Version 3.11.1
+--------------
+* Auto debug in case of an error. (#2738)
+* Remove duplicate log lines. (#2736)
+* Remove unused callback in ServerRequestHandler (#2737)
+* test on Python 3.14 (#2735)
+* Validate address in all datastores. (#2733)
+* Use asyncio.Event to deterministically ensure simulator start (#2734)
+* Ignore lockfile (#2730)
+* Link api_changes/changelog to README.
+* Add note about semver.org.
+* Datastore, add typing to set/get. (#2729)
+* Move exception codes to constants. (#2728)
+* Move ExceptionResponse to proper file. (#2727)
+* make base frame signature match subclasses (#2726)
+* Switch from venv+pip to uv (#2723)
+* Cleanup CI configuration (#2724)
+* Simplify code flow for broadcast requests (#2720)
+* Fix serial_forwarder.py from examples/contrib (#2715)
+* Remove discord. (#2714)
+
+Version 3.11.0
+--------------
+ * Correct bit handling (each byte is LSB->MSB). (#2707)
+ * read_input_registers docstring change count to regs (#2704)
+ * Add dev_id/tid check in clients (#2711)
+
+Version 3.10.0
+--------------
+* Raise runtimeerror if listen() fails. (#2697)
+* Correct values parameter in setValues. (#2696)
+* Correct return from getValues. (#2695)
+* Add request fc to exceptionResponse. (#2694)
+* DummyProtocol is not async (#2686)
+* Handle "little" for multiple values in to_registers (#2678)
+* Remove unused const. (#2676)
+* Add retries to ModbusPDU class (#2672)
+* Don't invoke `trace_connect` callback twice (#2670)
+* ensure unpacking of proper length during decoding (#2664) (#2665)
+* README clean-up (#2659)
+* Bump coverage to 95,5% (#2658)
+* Simplify response rejection. (#2657)
+* Bump coverage to 93%. (#2656)
+* Solve ModbusDeviceContext bug. (#2653)
+* Bit handling LSB -> MSB across bytes. (#2634)
+* Change slave to device_id and slave= to device_id=. (#2600)
+* Remove payload. (#2524)
+
+Version 3.9.2
+-------------
+* Reactivate simulator validate. (#2643)
+* Don't bool-test explicit datastores (#2638)
+* Test and hard delayed response test. (#2636)
+* Update simulator doc. (#2635)
+* SimData update
+* Officially working towards 4.0.0
+
+Version 3.9.1
+-------------
+* Correct byte order in bits. (#2631)
+
+Version 3.9.0
+-------------
+* Correct bit handling internally and in API. (#2627)
+* default argument  ModbusSequentialDataBlock (#2622)
+* Fix exception error message for decoding response (#2618)
+* Expose exception_code to API. (#2615)
+* Simplify ruff config (#2611)
+* Documentation dont fixed. (#2605)
+* sum() can operate on an Iterator directly (#2610)
+* SimData update. (#2601)
+* Start<x>Server custom_functions -> custom_pdu.
+* Update pyproject.toml to remove python 3.9.
+* Remove validate() from datastores. (#2595)
+* Python 3.9 is EOL, not supported actively. (#2596)
+* correct handle_local_echo for sync client. (#2593)
+* devcontainer, automatic install. (#2583)
+* Don't set_result on completed futures. (#2582)
+* Flush recv_buffer before each transaction write. (#2581)
+* Add missing trace. (#2578)
+* Update github actions. (#2579)
+
 Version 3.8.6
 -------------
 * Allow id=0 and check if response.id == request.id. (#2572)

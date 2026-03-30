@@ -8,8 +8,9 @@ usage::
     server_sync.py [-h] [--comm {tcp,udp,serial,tls}]
                    [--framer {ascii,rtu,socket,tls}]
                    [--log {critical,error,warning,info,debug}]
-                   [--port PORT] [--store {sequential,sparse,factory,none}]
-                   [--slaves SLAVES]
+                   [--port PORT]
+                   [--baudrate BAUDRATE]
+                   [--device_ids DEVICE_IDS]
 
     -h, --help
         show this help message and exit
@@ -21,11 +22,10 @@ usage::
         set log level, default is info
     -p, --port PORT
         set port
+    --baudrate BAUDRATE
         set serial device baud rate
-    --store {sequential,sparse,factory,none}
-        set datastore type
-    --slaves SLAVES
-        set number of slaves to respond to
+    --device_ids DEVICE_IDS
+        set list of devices to respond to
 
 The corresponding client can be started as:
     python3 client_sync.py
@@ -42,7 +42,7 @@ try:
     import helper  # type: ignore[import-not-found]
     import server_async  # type: ignore[import-not-found]
 except ImportError:
-    print("*** ERROR --> THIS EXAMPLE needs the example directory, please see \n\
+    print("*** ERROR --> THIS EXAMPLE needs to be run in the example directory, please see \n\
           https://pymodbus.readthedocs.io/en/latest/source/examples.html\n\
           for more information.")
     sys.exit(-1)
@@ -59,7 +59,6 @@ from pymodbus.server import (
 
 
 _logger = logging.getLogger(__name__)
-_logger.setLevel("DEBUG")
 
 
 def run_sync_server(args) -> None:
@@ -74,8 +73,8 @@ def run_sync_server(args) -> None:
             address=address,  # listen address
             # custom_functions=[],  # allow custom handling
             framer=args.framer,  # The framer strategy to use
-            # ignore_missing_slaves=True,  # ignore request to a missing slave
-            # broadcast_enable=False,  # treat slave 0 as broadcast address,
+            # ignore_missing_devices=True,  # ignore request to a missing device
+            # broadcast_enable=False,  # treat device_id 0 as broadcast address,
             # timeout=1,  # waiting time for request to complete
         )
     elif args.comm == "udp":
@@ -86,11 +85,11 @@ def run_sync_server(args) -> None:
             address=address,  # listen address
             # custom_functions=[],  # allow custom handling
             framer=args.framer,  # The framer strategy to use
-            # ignore_missing_slaves=True,  # ignore request to a missing slave
-            # broadcast_enable=False,  # treat slave 0 as broadcast address,
+            # ignore_missing_devices=True,  # ignore request to a missing device
+            # broadcast_enable=False,  # treat device_id 0 as broadcast address,
             # timeout=1,  # waiting time for request to complete
         )
-    elif args.comm == "serial":
+    elif args.comm == "serial":  # pragma: no cover
         # socat -d -d PTY,link=/tmp/ptyp0,raw,echo=0,ispeed=9600
         #             PTY,link=/tmp/ttyp0,raw,echo=0,ospeed=9600
         StartSerialServer(
@@ -105,10 +104,10 @@ def run_sync_server(args) -> None:
             # parity="E",  # Which kind of parity to use
             baudrate=args.baudrate,  # The baud rate to use for the serial device
             # handle_local_echo=False,  # Handle local echo of the USB-to-RS485 adaptor
-            # ignore_missing_slaves=True,  # ignore request to a missing slave
-            # broadcast_enable=False,  # treat slave 0 as broadcast address,
+            # ignore_missing_devices=True,  # ignore request to a missing device
+            # broadcast_enable=False,  # treat device_id 0 as broadcast address,
         )
-    elif args.comm == "tls":
+    elif args.comm == "tls":  # pragma: no cover
         address = ("", args.port) if args.port else None
         StartTlsServer(
             context=args.context,  # Data storage
@@ -125,13 +124,13 @@ def run_sync_server(args) -> None:
                 "key"
             ),  # The key file path for TLS (used if sslctx is None)
             # password=None,  # The password for for decrypting the private key file
-            # ignore_missing_slaves=True,  # ignore request to a missing slave
-            # broadcast_enable=False,  # treat slave 0 as broadcast address,
+            # ignore_missing_devices=True,  # ignore request to a missing device
+            # broadcast_enable=False,  # treat device_id 0 as broadcast address,
             # timeout=1,  # waiting time for request to complete
         )
 
 
-def sync_helper() -> None:
+def sync_helper() -> None:  # pragma: no cover
     """Combine setup and run."""
     run_args = server_async.setup_server(description="Run synchronous server.")
     run_sync_server(run_args)

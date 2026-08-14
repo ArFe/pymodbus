@@ -47,6 +47,7 @@ Thanks to
 - embedded-bed
 - Erlend E. Aasland
 - Esco441-91
+- fafan999
 - Farzad Panahi
 - Federico
 - FedericoMusa
@@ -55,6 +56,8 @@ Thanks to
 - Ghostkeeper
 - Hangyu Fan
 - Hayden Roche
+- huhujiajia1
+- Ifrah Neria
 - igorbga
 - Iktek
 - Ilkka Ollakka
@@ -73,6 +76,7 @@ Thanks to
 - julian
 - Julian Lunz
 - Justin Standring
+- Karim Malik
 - Kenny Johansson
 - Kevin W Matthews
 - Kürşat Aktaş
@@ -88,16 +92,21 @@ Thanks to
 - Maxime LEURENT
 - Michel F
 - Mickaël Schoentgen
+- MrAlaskan
 - Pavel Kostromitinov
 - peufeu2
 - Philip Couling
+- Philip Jägenstedt
 - Philip Jones
 - Robin Trabert
+- rubenmendes-eaton
 - Qi Li
+- Sankalp Thakur
 - Sebastian Machuca
 - Sefa Keleş
 - Steffen Beyer
 - sumguytho
+- Sunand
 - Szewcson
 - Thijs W
 - Totally a booplicate
@@ -147,6 +156,7 @@ Thanks to
 - Thor Michael Støre
 - Tim Gates
 - Ville Skyttä
+- Vincent Gao
 - Wild Stray
 - Yegor Yefremov
 

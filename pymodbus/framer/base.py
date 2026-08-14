@@ -4,6 +4,7 @@ The implementation is responsible for encoding/decoding requests/responses.
 
 According to the selected type of modbus frame a prefix/suffix is added/removed
 """
+
 from __future__ import annotations
 
 from enum import Enum
@@ -26,7 +27,7 @@ class FramerType(str, Enum):
 class FramerBase:
     """Intern base."""
 
-    EMPTY = b''
+    EMPTY = b""
     MIN_SIZE = 0
 
     def __init__(
@@ -60,11 +61,13 @@ class FramerBase:
 
         :param message: The populated request/response to send
         """
-        data = message.function_code.to_bytes(1,'big') + message.encode()
+        data = message.function_code.to_bytes(1, "big") + message.encode()
         frame = self.encode(data, message.dev_id, message.transaction_id)
         return frame
 
-    def handleFrame(self, data: bytes, exp_devid: int, exp_tid: int) -> tuple[int, ModbusPDU | None]:
+    def handleFrame(
+        self, data: bytes, exp_devid: int, exp_tid: int
+    ) -> tuple[int, ModbusPDU | None]:
         """Process incoming data."""
         used_len = 0
         while True:
@@ -86,7 +89,11 @@ class FramerBase:
                 )
                 continue
             if (pdu := self.decoder.decode(frame_data)) is None:
-                raise ModbusIOException("Unable to decode request")
+                raise ModbusIOException(
+                    "Unable to decode request",
+                    transaction_id=tid,
+                    dev_id=dev_id,
+                )
             pdu.dev_id = dev_id
             pdu.transaction_id = tid
             return used_len, pdu

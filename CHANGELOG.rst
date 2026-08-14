@@ -7,6 +7,71 @@ helps make pymodbus a better product.
 
 :ref:`Authors`: contains a complete list of volunteers have contributed to each major version.
 
+Version 3.15.0
+--------------
+* Control count in bit/register PDUs. (#2997)
+* FrameSize bug in Fifo queue ressponse. (#2996)
+* NullModem only support async clientes (#2995)
+* Propagate known request identity on ModbusIOException (#2993)
+* Fix unknown function-code exception identity (#2992)
+* Fix max recv length to 1.024bytes. (#2991)
+* Update doc  of `SimDevice.action`  (#2989)
+* SimAction is a coroutine (#2988)
+* Fix missing comma in devcontainer.json (#2987)
+* allow uv automatic dev install (#2982)
+* Add uv cache. (#2986)
+* Accept any Sequence[int] in convert_from_registers (#2985)
+* Add --all-groups flag to uv sync in ci.yml (#2984)
+* Correct SimAction doc. (#2983)
+* Fix validate byte count in file_message.py (#2980)
+* Ruff complains over None. (#2979)
+* Catch struct.error.
+* Fix: validate register write byte counts (#2977)
+* Fix write multiple coils byte count validation (#2974)
+* Reject unknown specific device identification objects (#2976)
+* Fix routing of unsupported MEI types (#2975)
+* Fix sync disconnect counter reset after successful response. (#2973)
+* set timeout on sync recv, avoid endless loop (#2971)
+* Do not allow old server context. (#2970)
+* Remove AI training with codeql. (#2969)
+* Remove uv cache. (#2968)
+* Remove unnecessary casting of self.simdata (#2965)
+* Cleanup `ModbusSerialServer.__init__` kwargs (#2962)
+* Disable pylint too-many-arguments (#2964)
+* Correct generate_ssl (demand certfile). (#2963)
+* Correct stopbit parameter doc (only 1 or 2 are supported).
+* Apply docstring fix in sync serial client from #1850 (#2958)
+* Fix pack_bitstring input mutation (#2959)
+
+Version 3.14.0
+--------------
+* Remove self signed certificate from production. (#2954)
+* Correct inequality in validation error message (#2953)
+* Fix non-deterministic convert_from_registers (#2951)
+* Fix swapped SimDevice in ModbusDeviceContext (#2952)
+* Update CI actions and pyproject. (#2938)
+* Add ruff format check to ci.yml (#2947)
+* Remove 'useless-suppression' pylint (#2949)
+* Format test_client.py with ruff (#2948)
+* Update clean_workflows CI (node@20 problem). (#2946)
+* Ruff format (due to ruff upgrade). (#2945)
+* Fix `ModbusServerContext` initialization with dict `devices` parameter (#2944)
+* Support configured ASCII input delimiter (#2942)
+* Fix default no-response behavior for force listen only (#2941)
+* Use correct format character for `DataType.REGISTERS` 'h' -> 'H' (#2940)
+
+Version 3.13.1
+--------------
+* Update CI Workflows.
+* Fix dropping the next frame after a skipped one (#2934)
+* Correct Log repeat. (#2931)
+* Fix address bounds check in get_reg_block (#2926)
+* Fix reg_count calc (#2924)
+* guard short frames and validate mbap in TLS framer (#2921)
+* Use latest uv in CI. (#2922)
+* Change MIN_SIZE in ascii frame. (#2920)
+* Harden ASCII framer. (#2918)
+
 Version 3.13.0
 --------------
 * Correct missing types. (#2914)

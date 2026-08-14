@@ -1,8 +1,9 @@
 """Simulator device model classes."""
+
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import TypeAlias, cast
 
@@ -12,14 +13,12 @@ from .simdata import SimData
 from .simutils import DataType, SimUtils
 
 
-SimAction: TypeAlias = Callable[[int, int, int, int, list[int], list[int] | list[bool] | None], Awaitable[None | ExcCodes]]
+SimAction: TypeAlias = Callable[
+    [int, int, int, int, list[int], list[int] | list[bool] | None],
+    Coroutine[None, None, ExcCodes | None],
+]
 SimRegs: TypeAlias = tuple[int, list[int], list[int]]
-TUPLE_NAMES = (
-      "coils",
-      "discrete inputs",
-      "holding registers",
-      "input registers"
-   )
+TUPLE_NAMES = ("coils", "discrete inputs", "holding registers", "input registers")
 
 
 @dataclass
@@ -64,7 +63,11 @@ class SimDevice:
     #:   (<coils>, <discrete inputs>, <holding registers>, <input registers>)
     #:
     #: ..tip:: addresses not defined are invalid and will produce an ExceptionResponse
-    simdata: SimData | list[SimData] | tuple[list[SimData], list[SimData], list[SimData], list[SimData]]
+    simdata: (
+        SimData
+        | list[SimData]
+        | tuple[list[SimData], list[SimData], list[SimData], list[SimData]]
+    )
 
     #: Define coil/discrete input addressing in shared mode.
     #:
@@ -98,12 +101,15 @@ class SimDevice:
     #:         count: int,            # request count
     #:         current_registers: list[int],  # current registers (modify inline)
     #:         set_values: list[int] | list[bool] | None  # request values to be written (None for read requests)
-    #      ) -> None | ExceptionResponse:
+    #:     ) -> ExcCodes | None:
     #:
     #: action can:
+    #:
     #: - update registers (affect the current and future responses)
+    #:
     #: - update set_values (affect the register update)
-    #: - return an ExceptionResponse.
+    #:
+    #: - return a member of :class:`pymodbus.constants.ExcCodes`.
     #:
     #: .. tip:: use functools.partial to add extra parameters if needed.
     action: SimAction | None = None
@@ -114,7 +120,9 @@ class SimDevice:
             raise TypeError("0 <= id < 255")
         if self.identity and not isinstance(self.identity, ModbusDeviceIdentification):
             raise TypeError("identity= must be a ModbusDeviceIdentification")
-        if self.action and not (callable(self.action) and inspect.iscoroutinefunction(self.action)):
+        if self.action and not (
+            callable(self.action) and inspect.iscoroutinefunction(self.action)
+        ):
             raise TypeError("action= must be a async function")
 
     def __check_simple2(self):
@@ -124,38 +132,51 @@ class SimDevice:
                 self.use_bit_addressing = True
             self.__check_simple_blocks()
             if not self.use_bit_addressing:
-                raise TypeError("use_bit_addressing=False is only supported with shared blocks")
+                raise TypeError(
+                    "use_bit_addressing=False is only supported with shared blocks"
+                )
         else:
             if self.use_bit_addressing is None:
                 self.use_bit_addressing = False
-            x_simdata = self.simdata if isinstance(self.simdata, list) else [self.simdata]
+            x_simdata = (
+                self.simdata if isinstance(self.simdata, list) else [self.simdata]
+            )
             for inx, entry in enumerate(x_simdata):
                 if not isinstance(entry, SimData):
                     raise TypeError(f"simdata=list[{inx}] is not a SimData entry")
 
     def __check_simple_blocks(self):
         """Check simple parameters."""
-        if not (isinstance(self.simdata, tuple)
-                and len(self.simdata) == 4):
-            raise TypeError("simdata= must be SimData, list of SimData or tuple with 4 list of SimData")
+        if not (isinstance(self.simdata, tuple) and len(self.simdata) == 4):
+            raise TypeError(
+                "simdata= must be SimData, list of SimData or tuple with 4 list of SimData"
+            )
         for i in range(4):
-            sim_list = cast(tuple, self.simdata)[i]
+            sim_list = self.simdata[i]
             if not isinstance(sim_list, list):
                 raise TypeError(f"simdata=tuple[{TUPLE_NAMES[i]}] -> must be a list")
             for inx, entry in enumerate(sim_list):
                 if not isinstance(entry, SimData):
-                    raise TypeError(f"simdata[{inx}]=tuple[{TUPLE_NAMES[i]}] -> list[{inx}] is not a SimData entry")
+                    raise TypeError(
+                        f"simdata[{inx}]=tuple[{TUPLE_NAMES[i]}] -> list[{inx}] is not a SimData entry"
+                    )
                 if i < 2 and entry.datatype != DataType.BITS:
-                    raise TypeError(f"simdata[{inx}]=tuple[{TUPLE_NAMES[i]}] -> list[{inx}] not DataType.BITS, not allowed")
+                    raise TypeError(
+                        f"simdata[{inx}]=tuple[{TUPLE_NAMES[i]}] -> list[{inx}] not DataType.BITS, not allowed"
+                    )
 
     def __check_block(self, block: list[SimData], use_bits, name: str):
         """Check block content."""
         x_block = sorted(block, key=lambda x: x.address)
-        last_address = x_block[0].address -1
+        last_address = x_block[0].address - 1
         for entry in x_block:
-            last_address = self.__check_block_entries(last_address, entry, use_bits, name)
+            last_address = self.__check_block_entries(
+                last_address, entry, use_bits, name
+            )
 
-    def __check_block_entries(self, last_address: int, entry: SimData, use_bits: bool, _name: str) -> int:
+    def __check_block_entries(
+        self, last_address: int, entry: SimData, use_bits: bool, _name: str
+    ) -> int:
         """Check block entries."""
         if entry.address <= last_address:
             raise TypeError(f"SimData address {entry.address} is overlapping!")
@@ -168,9 +189,11 @@ class SimDevice:
         self.__check_simple2()
         if isinstance(self.simdata, tuple):
             for i in range(4):
-                self.__check_block(cast(tuple,self.simdata)[i], (i in {0,1}), TUPLE_NAMES[i])
+                self.__check_block(self.simdata[i], (i in {0, 1}), TUPLE_NAMES[i])
         else:
-            x_simdata = self.simdata if isinstance(self.simdata, list) else [self.simdata]
+            x_simdata = (
+                self.simdata if isinstance(self.simdata, list) else [self.simdata]
+            )
             self.__check_block(x_simdata, False, "list")
 
     def __post_init__(self):
@@ -184,9 +207,15 @@ class SimDevice:
             flag_normal |= SimUtils.RunTimeFlag_READONLY
         return flag_normal
 
-    def __create_simdata(self, simdata: SimData, flag_list: list[int],  reg_list: list[int], use_bits: bool):
+    def __create_simdata(
+        self,
+        simdata: SimData,
+        flag_list: list[int],
+        reg_list: list[int],
+        use_bits: bool,
+    ):
         """Build registers for single SimData."""
-        flag_normal  = self.__build_flags(simdata)
+        flag_normal = self.__build_flags(simdata)
         blocks_regs = simdata.build_registers(use_bits)
         for _ in range(simdata.count):
             first = True
@@ -218,7 +247,7 @@ class SimDevice:
         """Create registers for device."""
         bit_list: list[bool] = []
         start_address = simdata[0].address
-        if (offset := start_address % 16):
+        if offset := start_address % 16:
             bit_list.extend([False] * offset)
             start_address -= offset
         for entry in simdata:
@@ -227,10 +256,12 @@ class SimDevice:
                 next_address = start_address + len(bit_list)
             entry_bits = entry.build_registers(True)
             bit_list.extend(cast(list[bool], entry_bits))
-        if (remains := len(bit_list) % 16):
+        if remains := len(bit_list) % 16:
             bit_list.extend([False] * (16 - remains))
 
-        flag_list: list[int] = [DataType.BITS] + [0] * (int(len(bit_list) / 16) -1) + [DataType.INVALID]
+        flag_list: list[int] = (
+            [DataType.BITS] + [0] * (int(len(bit_list) / 16) - 1) + [DataType.INVALID]
+        )
         bit_list.extend([False] * (len(bit_list) % 16))
         reg_list = SimUtils.bitsToRegisters(bit_list)
         reg_list.append(0)
@@ -240,16 +271,18 @@ class SimDevice:
         """Check simdata and built runtime structure."""
         self.__check_parameters()
         if not isinstance(self.simdata, tuple):
-            x_simdata = self.simdata if isinstance(self.simdata, list) else [self.simdata]
+            x_simdata = (
+                self.simdata if isinstance(self.simdata, list) else [self.simdata]
+            )
             x_simdata.sort(key=lambda x: x.address)
             return self.__create_block(x_simdata)
         b: dict[str, SimRegs] = {}
         #  (<coils>, <discrete inputs>, <holding registers>, <input registers>)
         convert = {0: "c", 1: "d", 2: "h", 3: "i"}
         for i in range(4):
-            x_simdata = cast(tuple, self.simdata)[i]
+            x_simdata = self.simdata[i]
             x_simdata.sort(key=lambda x: x.address)
-            if i in {0,1}:
+            if i in {0, 1}:
                 b[convert[i]] = self.__create_block_bits(x_simdata)
             else:
                 b[convert[i]] = self.__create_block(x_simdata)

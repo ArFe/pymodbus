@@ -1,4 +1,5 @@
 """Configure pytest."""
+
 import asyncio
 import platform
 import sys
@@ -40,7 +41,6 @@ BASE_PORTS = {
     "TestTransportReconnect": 7500,
     "TestTransportComm": 7600,
     "TestMessage": 7700,
-
     "TestExamples": 7800,
     "TestAsyncExamples": 7900,
     "TestSyncExamples": 8000,
@@ -119,7 +119,9 @@ def define_commandline_client(
 ):
     """Define commandline."""
     my_port = str(use_port)
-    cmdline = ["--comm", use_comm, "--framer", use_framer, "--timeout", "0.1"]
+    # Socket-backed serial can take seconds to complete long RTU frames under load.
+    timeout = "10" if use_comm == "serial" else "0.1"
+    cmdline = ["--comm", use_comm, "--framer", use_framer, "--timeout", timeout]
     if use_comm == "serial":
         if use_host == NULLMODEM_HOST:
             use_host = f"{use_host}:{my_port}"
@@ -191,7 +193,10 @@ async def _check_system_health():
             if not (
                 name in start_threads
                 or name.startswith("asyncio_")
-                or (sys.version_info.minor == 8 and name.startswith("ThreadPoolExecutor"))
+                or (
+                    sys.version_info.minor == 8
+                    and name.startswith("ThreadPoolExecutor")
+                )
             ):
                 thread.join(1.0)
                 error_text += f"-->THREAD{name}: {thread}\n"
@@ -208,9 +213,11 @@ async def _check_system_health():
     assert all_clean, error_text
     assert not NullModem.is_dirty()
 
+
 @pytest.fixture(name="mock_server_context")
 def define_mock_servercontext() -> ModbusServerContext:
     """Define context class."""
+
     class MockServerContext(ModbusServerContext):
         """Mock context."""
 
@@ -231,6 +238,7 @@ def define_mock_servercontext() -> ModbusServerContext:
             """Set values."""
 
     return cast(ModbusServerContext, MockServerContext)
+
 
 class MockLastValuesContext(ModbusServerContext):
     """Mock context."""

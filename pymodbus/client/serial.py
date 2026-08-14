@@ -1,4 +1,5 @@
 """Modbus client async serial communication."""
+
 from __future__ import annotations
 
 import contextlib
@@ -32,7 +33,7 @@ class AsyncModbusSerialClient(ModbusBaseClient):
     :param baudrate: Bits per second.
     :param bytesize: Number of bits per byte 7-8.
     :param parity: 'E'ven, 'O'dd or 'N'one
-    :param stopbits: Number of stop bits 1, 1.5, 2.
+    :param stopbits: Number of stop bits 1 or 2. (Note: 1.5 might work on non-POSIX systems)
     :param handle_local_echo: Discard local echo from dongle.
     :param name: Set communication name, used in logging
     :param reconnect_delay: Minimum delay when reconnecting, in seconds (use decimals for milliseconds).
@@ -65,7 +66,7 @@ class AsyncModbusSerialClient(ModbusBaseClient):
     Please refer to :ref:`Pymodbus internals` for advanced usage.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         port: str,
         *,
@@ -129,7 +130,7 @@ class ModbusSerialClient(ModbusBaseSyncClient):
     :param baudrate: Bits per second.
     :param bytesize: Number of bits per byte 7-8.
     :param parity: 'E'ven, 'O'dd or 'N'one
-    :param stopbits: Number of stop bits 0-2.
+    :param stopbits: Number of stop bits 1 or 2. (Note: 1.5 might work on non-POSIX systems)
     :param handle_local_echo: Discard local echo from dongle.
     :param name: Set communication name, used in logging
     :param reconnect_delay: Not used in the sync client
@@ -157,7 +158,7 @@ class ModbusSerialClient(ModbusBaseSyncClient):
     Please refer to :ref:`Pymodbus internals` for advanced usage.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         port: str,
         *,
@@ -252,7 +253,11 @@ class ModbusSerialClient(ModbusBaseSyncClient):
 
     def _in_waiting(self):
         """Return waiting bytes."""
-        return getattr(self.socket, "in_waiting") if hasattr(self.socket, "in_waiting") else getattr(self.socket, "inWaiting")()
+        return (
+            getattr(self.socket, "in_waiting")
+            if hasattr(self.socket, "in_waiting")
+            else getattr(self.socket, "inWaiting")()
+        )
 
     def send(self, request: bytes, addr: tuple | None = None) -> int:
         """Send data on the underlying socket."""

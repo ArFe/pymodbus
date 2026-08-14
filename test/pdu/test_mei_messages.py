@@ -3,11 +3,13 @@
 This fixture tests the functionality of all the
 mei based request/response messages:
 """
+
 from typing import cast
 
 import pytest
 
-from pymodbus.constants import DeviceInformation
+from pymodbus.constants import DeviceInformation, ExcCodes
+from pymodbus.pdu.decoders import DecodePDU
 from pymodbus.pdu.device import ModbusControlBlock
 from pymodbus.pdu.mei_message import (
     ReadDeviceInformationRequest,
@@ -41,6 +43,25 @@ class TestMeiMessage:
         assert handle.read_code == DeviceInformation.BASIC
         assert not handle.object_id
 
+    def test_device_information_mei_type_is_routed(self):
+        """Test MEI type 0x0E is routed to device identification."""
+        pdu = DecodePDU(True).decode(b"\x2b\x0e\x01\x00")
+
+        assert isinstance(pdu, ReadDeviceInformationRequest)
+
+    @pytest.mark.parametrize("mei_type", [0x00, 0x0D, 0x0F, 0xFF])
+    async def test_unsupported_mei_type_is_not_device_information(
+        self, mei_type, mock_server_context
+    ):
+        """Test unsupported MEI types are not routed to device identification."""
+        pdu = DecodePDU(True).decode(bytes([0x2B, mei_type, 0x01, 0x00]))
+
+        assert pdu
+        assert not isinstance(pdu, ReadDeviceInformationRequest)
+        assert pdu.sub_function_code == mei_type
+        response = await pdu.datastore_update(mock_server_context(), 0)
+        assert response.exception_code == ExcCodes.ILLEGAL_FUNCTION
+
     async def test_read_device_information_request(self, mock_server_context):
         """Test basic bit message encoding/decoding."""
         context = mock_server_context()
@@ -60,10 +81,21 @@ class TestMeiMessage:
             _ = result.information[0x81]
 
         handle = ReadDeviceInformationRequest(
+            read_code=DeviceInformation.SPECIFIC, object_id=0x00
+        )
+        result = await handle.datastore_update(context, 0)
+        assert cast(ReadDeviceInformationResponse, result).information == {
+            0x00: "Company"
+        }
+
+        handle = ReadDeviceInformationRequest(
             read_code=DeviceInformation.EXTENDED, object_id=0x80
         )
         result = await handle.datastore_update(context, 0)
-        assert cast(ReadDeviceInformationResponse, result).information[0x81] == ["Test", "Repeated"]
+        assert cast(ReadDeviceInformationResponse, result).information[0x81] == [
+            "Test",
+            "Repeated",
+        ]
 
     async def test_read_device_information_request_error(self, mock_server_context):
         """Test basic bit message encoding/decoding."""
@@ -77,13 +109,23 @@ class TestMeiMessage:
         assert (await handle.datastore_update(context, 0)).function_code == 0xAB
         handle.object_id = 0x100
         assert (await handle.datastore_update(context, 0)).function_code == 0xAB
+        handle = ReadDeviceInformationRequest(
+            read_code=DeviceInformation.SPECIFIC, object_id=0x54
+        )
+        result = await handle.datastore_update(context, 0)
+        assert result.exception_code == ExcCodes.ILLEGAL_ADDRESS
+        ModbusControlBlock().Identity[0xFE] = ""
+        handle = ReadDeviceInformationRequest(
+            read_code=DeviceInformation.SPECIFIC, object_id=0xFE
+        )
+        result = await handle.datastore_update(context, 0)
+        assert result.exception_code == ExcCodes.ILLEGAL_ADDRESS
 
     def test_read_device_information_calc1(self):
         """Test calculateRtuFrameSize, short buffer."""
         handle = ReadDeviceInformationResponse()
         assert handle.calculateRtuFrameSize(b"\x0e\x01\x83") == 999
         assert handle.calculateRtuFrameSize(b"\x0e\x01\x83\x00\x00\x03\x01\x03") == 998
-
 
     def test_read_device_information_sub_fc(self):
         """Test calculateRtuFrameSize, short buffer."""
@@ -133,7 +175,7 @@ class TestMeiMessage:
             "elit, vehicula tempus tempus sed. "
         )
 
-        message = b"\x0e\x01\x83\xFF\x80\x03"
+        message = b"\x0e\x01\x83\xff\x80\x03"
         message += TEST_MESSAGE
         dataset = {
             0x00: "Company",
@@ -165,10 +207,10 @@ class TestMeiMessage:
     def test_frame_size(self):
         """Test that the read device information response can decode."""
         message = (
-            b"\x04\x2B\x0E\x01\x81\x00\x01\x01\x00\x06\x66\x6F\x6F\x62\x61\x72\xD7\x3B"
+            b"\x04\x2b\x0e\x01\x81\x00\x01\x01\x00\x06\x66\x6f\x6f\x62\x61\x72\xd7\x3b"
         )
         result = ReadDeviceInformationResponse.calculateRtuFrameSize(message)
         assert result == 18
-        message = b"\x00\x2B\x0E\x02\x00\x4D\x47"
+        message = b"\x00\x2b\x0e\x02\x00\x4d\x47"
         result = ReadDeviceInformationRequest.calculateRtuFrameSize(message)
         assert result == 7

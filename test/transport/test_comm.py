@@ -1,4 +1,5 @@
 """Test transport."""
+
 import asyncio
 import platform
 import time
@@ -181,7 +182,7 @@ class TestTransportComm:
         await asyncio.sleep(0.5)
         assert len(server.active_connections) == 1
         server_connected = list(server.active_connections.values())[0]
-        test_data = b"abcd" * 1000
+        test_data = b"abcd" * 10
         client.send(test_data)
         await asyncio.sleep(0.5)
         assert server_connected.recv_buffer == test_data
@@ -238,7 +239,7 @@ class TestTransportComm:
 
         client2.send(test_data)
         await asyncio.sleep(0.5)
-        assert server2_connected.recv_buffer ==  test_data
+        assert server2_connected.recv_buffer == test_data
         client2.close()
         server.close()
         await asyncio.sleep(0.5)

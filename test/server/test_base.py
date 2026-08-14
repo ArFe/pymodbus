@@ -1,9 +1,11 @@
 """Test server asyncio."""
+
 from unittest import mock
 
 import pytest
 
 from pymodbus.datastore import ModbusDeviceContext, ModbusServerContext
+from pymodbus.exceptions import ParameterException
 from pymodbus.framer import FramerType
 from pymodbus.pdu import ReadHoldingRegistersRequest
 from pymodbus.server import ModbusBaseServer
@@ -125,7 +127,6 @@ class TestBaseServer:
         baseserver.serving.set_result(True)
         await baseserver.serve_forever()
 
-
     async def test_base_connected(self, baseserver):
         """Test serve_forever."""
         with pytest.raises(RuntimeError):
@@ -140,3 +141,27 @@ class TestBaseServer:
         """Test serve_forever."""
         with pytest.raises(RuntimeError):
             baseserver.callback_data(None)
+
+    async def test_base_old_context(self):
+        """Test serve_forever."""
+        context = ModbusServerContext(devices=ModbusDeviceContext())
+        context.simdevices = []
+        with pytest.raises(ParameterException):
+            ModbusBaseServer(
+                CommParams(
+                    comm_type=CommType.TCP,
+                    comm_name="server_listener",
+                    reconnect_delay=0.0,
+                    reconnect_delay_max=0.0,
+                    timeout_connect=0.0,
+                ),
+                context,
+                False,
+                False,
+                None,
+                FramerType.SOCKET,
+                None,
+                None,
+                None,
+                [ReadHoldingRegistersRequest],
+            )

@@ -1,4 +1,5 @@
 """Implementation of a Threaded Modbus Server."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,6 +7,7 @@ from collections.abc import Callable
 from contextlib import suppress
 
 from ..datastore import ModbusServerContext
+from ..exceptions import ParameterException
 from ..framer import FRAMER_NAME_TO_CLASS, FramerType
 from ..logging import Log
 from ..pdu import DecodePDU, ModbusPDU
@@ -21,7 +23,7 @@ class ModbusBaseServer(ModbusProtocol):
 
     active_server: ModbusBaseServer | None = None
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         params: CommParams,
         context: ModbusServerContext | SimDevice | list[SimDevice],
@@ -49,8 +51,10 @@ class ModbusBaseServer(ModbusProtocol):
             self.context = SimCore(context)
         elif context.simdevices:
             self.context = SimCore(context.simdevices)
-        else:
+        elif context.old_simulator:
             self.context = context
+        else:
+            raise ParameterException("context= contains unknown object.")
         self.control = ModbusControlBlock()
         self.ignore_missing_devices = ignore_missing_devices
         self.broadcast_enable = broadcast_enable
@@ -68,10 +72,7 @@ class ModbusBaseServer(ModbusProtocol):
     def callback_new_connection(self):
         """Handle incoming connect."""
         return ServerRequestHandler(
-            self,
-            self.trace_packet,
-            self.trace_pdu,
-            self.trace_connect
+            self, self.trace_packet, self.trace_pdu, self.trace_connect
         )
 
     async def shutdown(self):
@@ -106,7 +107,9 @@ class ModbusBaseServer(ModbusProtocol):
         """Handle received data."""
         raise RuntimeError("callback_data should never be called")
 
-    async def async_getValues(self, device_id: int, func_code: int, address: int, count: int = 1) -> list[int] | list[bool]:
+    async def async_getValues(
+        self, device_id: int, func_code: int, address: int, count: int = 1
+    ) -> list[int] | list[bool]:
         """Get `count` values from datastore.
 
         :param device_id: the device being addressed
@@ -120,7 +123,13 @@ class ModbusBaseServer(ModbusProtocol):
             raise TypeError("Illegal external call to server.async_getValues")
         return res
 
-    async def async_setValues(self, device_id: int, func_code: int, address: int, values: list[int] | list[bool] ) -> None:
+    async def async_setValues(
+        self,
+        device_id: int,
+        func_code: int,
+        address: int,
+        values: list[int] | list[bool],
+    ) -> None:
         """Set the datastore with the supplied values.
 
         :param device_id: the device being addressed

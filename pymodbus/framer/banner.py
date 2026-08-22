@@ -1,8 +1,8 @@
 """Modbus RTU frame implementation."""
 from __future__ import annotations
 
-from pymodbus.framer.base import FramerBase
-from pymodbus.logging import Log
+from ..logging import Log
+from .base import FramerBase
 
 
 class FramerBanner(FramerBase):
@@ -139,13 +139,13 @@ class FramerBanner(FramerBase):
         return 0, 0, 0, self.EMPTY
 
 
-    def encode(self, pdu: bytes, device_id: int, _tid: int) -> bytes:
+    def encode(self, payload: bytes, device_id: int, _tid: int) -> bytes:
         """Encode ADU."""
         if device_id > 0xFF:
-            frame = 0xfa.to_bytes(1,'big') + device_id.to_bytes(2,'big') + pdu
+            frame = 0xfa.to_bytes(1,'big') + (device_id & 0xFFFF).to_bytes(2,'big') + payload
         else:
             Log.debug("Using legacy mode for device_id")
-            frame = device_id.to_bytes(1,'big') + pdu
+            frame = device_id.to_bytes(1,'big') + payload
         return frame + FramerBanner.compute_CRC(frame).to_bytes(2,'big')
 
     @classmethod

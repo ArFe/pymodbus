@@ -12,7 +12,7 @@ __all__ = [
 
 from .ascii import FramerAscii
 from .base import FramerBase, FramerType
-from .framer.banner import FramerBanner
+from .banner import FramerBanner
 from .rtu import FramerRTU
 from .socket import FramerSocket
 from .tls import FramerTLS

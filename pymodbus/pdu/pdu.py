@@ -28,7 +28,7 @@ class ModbusPDU:
     ) -> None:
         """Initialize the base data for a modbus request."""
         self.dev_id: int = dev_id
-        if dev_id > 255:
+        if (dev_id & 0xFFFF) > 0xFFFF:
             raise ModbusIOException(
                 f"Invalid ID {dev_id}",
                 transaction_id=transaction_id,

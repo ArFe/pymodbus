@@ -1,0 +1,12 @@
+2025-03-04 17:02:48,589 INFO  test_logging:50 test
+2025-03-04 17:02:48,590 WARNING test_logging:52 test
+2025-03-04 17:02:48,590 CRITICAL test_logging:54 test
+2025-03-04 17:02:48,590 ERROR test_logging:56 test
+2025-03-04 17:02:48,800 ERROR pdu:128 Exception response 144 / 2
+2025-03-04 17:02:48,902 ERROR pdu:128 Exception response 144 / 2
+2025-03-04 17:02:49,006 ERROR pdu:128 Exception response 149 / 0
+2025-03-04 17:02:49,110 ERROR pdu:128 Exception response 149 / 0
+2025-03-04 17:04:33,670 INFO  test_logging:50 test
+2025-03-04 17:04:33,671 WARNING test_logging:52 test
+2025-03-04 17:04:33,671 CRITICAL test_logging:54 test
+2025-03-04 17:04:33,672 ERROR test_logging:56 test

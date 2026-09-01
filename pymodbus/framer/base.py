@@ -78,9 +78,9 @@ class FramerBase:
             used_len += data_len
             if not data_len or not frame_data:
                 return used_len, None
-            if exp_devid and dev_id != exp_devid:
+            if exp_devid and dev_id & 0xFFFF != exp_devid & 0xFFFF:
                 Log.error(
-                    f"ERROR: request ask for id={exp_devid} but got id={dev_id}, Skipping."
+                    f"ERROR: request ask for id={exp_devid & 0xFFFF} but got id={dev_id & 0xFFFF}, Skipping."
                 )
                 continue
             if exp_tid and tid and tid != exp_tid:

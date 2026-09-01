@@ -154,9 +154,9 @@ class TransactionManager(ModbusProtocol):
                         request.dev_id, request.transaction_id
                     )
                     self.count_until_disconnect = self.max_until_disconnect
-                    if response.dev_id != request.dev_id:
+                    if (response.dev_id & 0xFFFF) != (request.dev_id & 0xFFFF):
                         raise self._io_exception_from_request(
-                            f"ERROR: request uses device id={request.dev_id} but received {response.dev_id}.",
+                            f"ERROR: request uses device id={request.dev_id & 0xFFFF} but received {response.dev_id & 0xFFFF}.",
                             request,
                         )
                     if response.transaction_id != request.transaction_id:
@@ -207,9 +207,9 @@ class TransactionManager(ModbusProtocol):
                         self.response_future, timeout=self.comm_params.timeout_connect
                     )
                     self.count_until_disconnect = self.max_until_disconnect
-                    if request.dev_id and response.dev_id != request.dev_id:
+                    if request.dev_id and (response.dev_id & 0xFFFF) != (request.dev_id & 0xFFFF):
                         raise self._io_exception_from_request(
-                            f"ERROR: request uses device id={request.dev_id} but received {response.dev_id}.",
+                            f"ERROR: request uses device id={request.dev_id & 0xFFFF} but received {response.dev_id & 0xFFFF}.",
                             request,
                         )
                     if (
